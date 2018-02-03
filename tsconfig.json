@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "allowSyntheticDefaultImports": true,
+        "strict": true,
+        "noImplicitAny": false,
+        "outDir": "./target/main/",
+        "lib": ["esnext"]
+    },
+    "include": [
+        "src/main/"
+    ]
+}
