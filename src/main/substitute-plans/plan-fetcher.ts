@@ -4,7 +4,7 @@ import { gymHerzRequest } from './gym-herz-server';
 import { ModifiedChecker } from './modified-checker';
 
 class PlanFetcherClass {
-    private plansCache: { [wd: string]: PlanRequest | ParsedPlan } = {};
+    private plansCache: { [wd: string]: PlanRequest | ParsedPlan | undefined } = {};
 
     constructor() { }
 
@@ -25,7 +25,7 @@ class PlanFetcherClass {
     private async fetchPlan(weekDay: string, modified: Date) {
         const cacheValue = this.plansCache[weekDay];
         if (cacheValue) {
-            if (cacheValue.modified.getTime() >= modified.getTime()) {
+            if (cacheValue.modified >= modified) {
                 return cacheValue instanceof PlanRequest ?
                     cacheValue.promise :
                     cacheValue;
@@ -33,24 +33,26 @@ class PlanFetcherClass {
         }
         const promise = this.fetchPlanRequest(weekDay)
             .then((result) => {
-                const parsedPlan = parsePlan(result, modified);
+                const parsedPlan = parsePlan(weekDay, modified, result);
                 this.plansCache[weekDay] = parsedPlan;
                 return parsedPlan;
             })
             .catch((err) => {
-                delete this.plansCache[weekDay];
+                this.plansCache[weekDay] = undefined;
                 throw err;
             });
         this.plansCache[weekDay] = new PlanRequest(promise, modified);
         return promise;
     }
 
+    // called by api endpoint
     public async getPlan(weekDay) {
-        const modified = (await ModifiedChecker.getLastModified(weekDay)).modified;
+        const modified = await ModifiedChecker.getLastModifiedForDay(weekDay);
         return this.fetchPlan(weekDay, modified);
     }
 
-    public notifyPlanUpdate(weekDay: string, modified: Date) {
+    // called by ModifiedChecker
+    public notifyPlanModified(weekDay: string, modified: Date) {
         this.fetchPlan(weekDay, modified)
             .catch((err) => {
                 console.log('Error in notifyPlanUpdate', err.toString(), err.stack);
@@ -62,6 +64,6 @@ export const PlanFetcher = new PlanFetcherClass();
 
 class PlanRequest {
     constructor(
-        public promise: Promise<ParsedPlan | undefined>,
+        public promise: Promise<ParsedPlan>,
         public modified: Date) { }
 }

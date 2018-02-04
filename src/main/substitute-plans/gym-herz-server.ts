@@ -10,6 +10,7 @@ export const gymHerzRequest = require('request-promise-native')
         baseUrl: 'http://www.gymnasium-herzogenaurach.de/',
         resolveWithFullResponse: true,
         simple: false,
+        timeout: 4000,
         agent
     });
 

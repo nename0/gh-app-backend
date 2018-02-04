@@ -6,7 +6,7 @@ import { WEEK_DAYS } from './gym-herz-server';
 const API_CACHE_CONTROL = 'public, max-age=10, stale-while-revalidate=180';
 
 export function plansApi(app: express.IRouter<any>) {
-    app.get('/plans/getLatest', async function(req, res) {
+    app.get('/plans/getLatestModified', async function(req, res) {
         const date = await ModifiedChecker.getLatestModified();
         res.set({
             'cache-control': API_CACHE_CONTROL,
@@ -23,15 +23,10 @@ export function plansApi(app: express.IRouter<any>) {
         }
 
         const plan = await PlanFetcher.getPlan(weekDay);
-        if (!plan) {
-            res.status(500).send('unable to fetch plan');
-            return;
-        }
         res.set({
             'cache-control': API_CACHE_CONTROL,
-            'last-modified': plan.modified.toUTCString(),
-            'content-type': 'text/html'
+            'last-modified': plan.modified.toUTCString()
         });
-        res.send(plan.html);
+        res.json(plan);
     });
 };

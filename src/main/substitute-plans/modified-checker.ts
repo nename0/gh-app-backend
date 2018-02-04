@@ -2,98 +2,112 @@ import { IncomingMessage } from 'http';
 import { ParsedPlan } from './parser';
 import { PlanFetcher } from './plan-fetcher';
 import { gymHerzRequest, WEEK_DAYS } from './gym-herz-server';
+import { WebsocketServer } from '../websocket';
 
 class ModifiedCheckerClass {
-    private modifiedCache: { [wd: string]: ModifiedCacheValue | Promise<ModifiedCacheValue> } = {};
+    private modifiedCache: { [wd: string]: Date | Promise<Date> | undefined } = {};
+    private latestModifiedDate = new Date(-1);
+    private lastCheckTime = 0;
+    private globalNotifyLock = 0;
+    private lastGlobalNotify = new Date(-1);
 
     constructor() { }
 
-    private async checkModifiedRequest(weekDay: string, oldValue?: ModifiedCacheValue) {
+    private async checkModifiedRequest(weekDay: string, oldValue?: Date) {
         const options = {
             url: 'aktuelle_vertretungen/Woche/ressourcen007/schuelerplan_' + weekDay + '.htm',
         };
         if (oldValue) {
             options['headers'] = {
-                'if-modified-since': oldValue.modified.toUTCString()
+                'if-modified-since': oldValue.toUTCString()
             };
         }
-        console.log('checkModified', weekDay);
         const message: IncomingMessage = await gymHerzRequest.head(options);
         const lastModified = message.headers['last-modified'];
         if (message.statusCode === 200 && lastModified) {
-            return new ModifiedCacheValue(
-                new Date(lastModified),
-                Date.now());
+            return new Date(lastModified);
         } else if (message.statusCode === 304) {
-            (<ModifiedCacheValue>oldValue).lastCheck = Date.now();
-            return (<ModifiedCacheValue>oldValue);
+            return (<Date>oldValue);
         }
         console.log('Bad response from www.gymnasium-herzogenaurach.de', message.statusCode, message.headers);
         throw new Error('Bad response from www.gymnasium-herzogenaurach.de: ' + message.statusCode);
     }
 
-    private async checkModified(weekDay: string, deltaCheck: number) {
+    private async checkModified(weekDay: string, deltaCheckMs: number) {
         const cacheValue = this.modifiedCache[weekDay];
         if (cacheValue) {
-            if (!(cacheValue instanceof ModifiedCacheValue)) {
-                return cacheValue;
-            }
-            if (Date.now() < cacheValue.lastCheck + deltaCheck) {
-                console.log('checkModified', weekDay, ' skipped');
+            if (!(cacheValue instanceof Date)) {
                 return cacheValue;
             }
         }
         const promise = this.checkModifiedRequest(weekDay, cacheValue)
             .then((result) => {
-                if (result !== cacheValue) {
-                    PlanFetcher.notifyPlanUpdate(weekDay, result.modified)
+                if (result === cacheValue) {
+                    return result;
+                }
+                PlanFetcher.notifyPlanModified(weekDay, result);
+                if (result > this.latestModifiedDate) {
+                    this.latestModifiedDate = result;
+                    this.tryNotifyGlobal();
                 }
                 this.modifiedCache[weekDay] = result;
                 return result;
             })
             .catch((err) => {
-                delete this.modifiedCache[weekDay];
+                this.modifiedCache[weekDay] = undefined;
                 throw err;
             });
         this.modifiedCache[weekDay] = promise;
         return promise;
     }
 
+    // called by api endpoint
     public async getLatestModified() {
-        let result = -1;
-        await Promise.all(
-            WEEK_DAYS.map(async (weekDay) => {
-                const cacheValue = await this.checkModified(weekDay, 20000);
-                if (!cacheValue) {
-                    return;
-                }
-                if (cacheValue.modified.getTime() > result) {
-                    result = cacheValue.modified.getTime();
-                }
-            })
-        );
-        const date = new Date();
-        date.setTime(result);
-        return date;
+        await this.recheckAll(45000);
+        return this.latestModifiedDate;
     }
 
-    public getLastModified(weekDay: string) {
-        return this.checkModified(weekDay, 20000);
+    // called when plan is fetched by api endpoint
+    public async getLastModifiedForDay(weekDay: string) {
+        let cacheValue = this.modifiedCache[weekDay];
+        if (!cacheValue) {
+            await this.recheckAll(45000);
+            cacheValue = this.modifiedCache[weekDay]
+            if (!cacheValue) { throw new Error('should not happen in getLastModifiedForDay'); }
+        }
+        return cacheValue;
     }
 
-    public async recheckAll() {
-        await Promise.all(
-            WEEK_DAYS.map((weekDay) => {
-                return this.checkModified(weekDay, 10000);
-            })
-        );
+    public async recheckAll(deltaCheckMs: number) {
+        if (Date.now() < this.lastCheckTime + deltaCheckMs) {
+            console.log('checkModified skipped: delta <', deltaCheckMs);
+            return;
+        }
+        console.log('checkModified: delta >', deltaCheckMs);
+        // lock to prevent multiple notifys
+        this.globalNotifyLock++;
+        try {
+            await Promise.all(
+                WEEK_DAYS.map((weekDay) => {
+                    return this.checkModified(weekDay, deltaCheckMs);
+                })
+            );
+            this.lastCheckTime = Date.now();
+        } finally {
+            this.globalNotifyLock--;
+            this.tryNotifyGlobal();
+        }
+    }
+
+    private tryNotifyGlobal() {
+        if (this.globalNotifyLock > 0) {
+            return;
+        }
+        if (this.latestModifiedDate > this.lastGlobalNotify) {
+            WebsocketServer.notifyAllModified();
+            this.lastGlobalNotify = this.latestModifiedDate;
+        }
     }
 }
 
 export const ModifiedChecker = new ModifiedCheckerClass();
-
-class ModifiedCacheValue {
-    constructor(
-        public modified: Date,
-        public lastCheck: number) { }
-}

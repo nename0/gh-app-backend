@@ -3,7 +3,8 @@ import 'express-async-errors';
 import * as path from 'path';
 import { Server, createServer } from 'http';
 import { plansApi } from './substitute-plans/api';
-import { setupWebsocket } from './weboscket';
+import { Scheduler } from './scheduler';
+import { WebsocketServer } from './websocket';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const PUBLIC = path.join(__dirname, '../www');
@@ -28,7 +29,7 @@ class MyServer {
 
         this.server = createServer(this.app);
 
-        setupWebsocket(this.server);
+        WebsocketServer.setup(this.server);
     }
 
     config() {
@@ -45,6 +46,7 @@ class MyServer {
 
     public start() {
         this.server.listen(PORT, () => console.log(`Listening on ${PORT}`));
+        Scheduler.start();
     }
 
 }
