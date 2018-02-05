@@ -19,7 +19,7 @@ function parsePlanDate($: CheerioStatic) {
     const month = parseInt(split2[1], 10);
     const day = parseInt(split2[0], 10);
     ifNotParseError(year && month && day, 'headline date format');
-    return new Date(year, month - 1, day, 12);
+    return new Date(Date.UTC(year, month - 1, day, 12));
 }
 
 function parseModifiedDate(tables: Cheerio) {
@@ -92,7 +92,7 @@ export class ParsedPlan {
         $: CheerioStatic
     ) {
         this.planDate = parsePlanDate($);
-        if (new Date(this.planDate).setHours(23, 59, 59, 999) < Date.now()) {
+        if (new Date(this.planDate).setUTCHours(23, 59, 59, 999) < Date.now()) {
             this.outdated = true;
             return;
         }

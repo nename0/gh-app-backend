@@ -104,6 +104,7 @@ class ModifiedCheckerClass {
             return;
         }
         if (this.latestModifiedDate > this.lastGlobalNotify) {
+            console.log('notifyAllModified', this.latestModifiedDate);
             WebsocketServer.notifyAllModified();
             this.lastGlobalNotify = this.latestModifiedDate;
         }

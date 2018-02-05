@@ -65,13 +65,13 @@ class SchedulerClass {
     }
 
     private async scheduleModificationCheck() {
-        if (this.timerForModificationCheck) {
-            clearTimeout(this.timerForModificationCheck);
-        }
         const timeout = (await this.isBurstTime()) ? 10 * 1000 : 4 * 60 * 1000;
         if (this.timeoutForModificationCheck !== timeout) {
             console.log('Changing timeout for ModificationCheck to', timeout);
             this.timeoutForModificationCheck = timeout;
+        }
+        if (this.timerForModificationCheck) {
+            clearTimeout(this.timerForModificationCheck);
         }
         this.timerForModificationCheck = setTimeout(this.checkModification, this.timeoutForModificationCheck);
     }
