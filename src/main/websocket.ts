@@ -2,6 +2,7 @@ import * as ws from 'ws';
 import { API_PATH } from './server';
 import { Server } from 'http';
 import { promisify } from 'util';
+import { ModifiedChecker } from './substitute-plans/modified-checker';
 
 ws.prototype['sendAsync'] = promisify(ws.prototype.send);
 declare class MyWebSocket extends ws {
@@ -26,7 +27,7 @@ class WebsocketServerClass {
         this.server.on('connection', this.handleConnection);
     }
 
-    private verifyClient = (info: { origin: string }): boolean => {
+    private verifyClient: ws.VerifyClientCallbackSync = (info) => {
         //TODO auth
         return ['https://gh-app.tk',
             'https://backend-gh-app.herokuapp.com',
@@ -49,9 +50,18 @@ class WebsocketServerClass {
                 if (!socket.lastSendTime || socket.lastSendTime + 30 * 1000 <= Date.now()) {
                     this.sendMessage(socket, '');
                 }
-            } else {
-                console.log('unknown message from ws client', data);
+                return;
+            } else if (typeof data === 'string') {
+                const clientDate = new Date(data);
+                if (!isNaN(+clientDate)) {
+                    const serverDate = ModifiedChecker.peekLatestModified();
+                    if (serverDate > clientDate) {
+                        this.sendMessage(socket, serverDate.toUTCString());
+                    }
+                    return;
             }
+            }
+            console.log('unknown message from ws client' + data);
         });
     }
 
@@ -68,9 +78,10 @@ class WebsocketServerClass {
         console.log('ws', err.message);
     }
 
-    public notifyAllModified() {
+    public notifyAllModified(latestModifiedDate: Date) {
+        const message = latestModifiedDate.toUTCString();
         this.server.clients.forEach((socket) => {
-            this.sendMessage(<MyWebSocket>socket, 'notifyModified');
+            this.sendMessage(<MyWebSocket>socket, message);
         })
     }
 }

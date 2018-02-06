@@ -67,6 +67,15 @@ class ModifiedCheckerClass {
         return this.latestModifiedDate;
     }
 
+    // called by websocket
+    public peekLatestModified() {
+        // just call don't await
+        this.recheckAll(45000).catch((err) => {
+            console.log('Error in recheckAll', err.toString(), err.stack);
+        });
+        return this.latestModifiedDate;
+    }
+
     // called when plan is fetched by api endpoint
     public async getLastModifiedForDay(weekDay: string) {
         let cacheValue = this.modifiedCache[weekDay];
@@ -105,7 +114,7 @@ class ModifiedCheckerClass {
         }
         if (this.latestModifiedDate > this.lastGlobalNotify) {
             console.log('notifyAllModified', this.latestModifiedDate);
-            WebsocketServer.notifyAllModified();
+            WebsocketServer.notifyAllModified(this.latestModifiedDate);
             this.lastGlobalNotify = this.latestModifiedDate;
         }
     }
