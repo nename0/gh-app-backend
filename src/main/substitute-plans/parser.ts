@@ -1,11 +1,11 @@
 import * as cheerio from 'cheerio';
 import { parseDateTime } from '../db';
 
-export function parsePlan(weekDay: string, modified: Date, html: string): ParsedPlan {
+export function parsePlan(weekDay: string, modification: Date, html: string): ParsedPlan {
     const $ = cheerio.load(html);
     $('head>meta').remove('[http-equiv="Content-Type"]');
 
-    return new ParsedPlan(weekDay, modified, $);
+    return new ParsedPlan(weekDay, modification, $);
 }
 
 function parsePlanDate($: CheerioStatic) {
@@ -22,7 +22,7 @@ function parsePlanDate($: CheerioStatic) {
     return new Date(Date.UTC(year, month - 1, day, 12));
 }
 
-function parseModifiedDate(tables: Cheerio) {
+function parseModificationDate(tables: Cheerio) {
     const header = tables.filter('[width="90%"]');
     ifNotParseError(header.length === 1, 'header');
     const text = header.find('th.TextAktuellesDatum').first().text();
@@ -88,7 +88,7 @@ export class ParsedPlan {
 
     constructor(
         public weekDay: string,
-        public modified: Date,
+        public modification: Date,
         $: CheerioStatic
     ) {
         this.planDate = parsePlanDate($);
@@ -98,13 +98,13 @@ export class ParsedPlan {
         }
 
         const tables = $('body>center>table');
-        parseModifiedDate(tables).then((contentModified) => {
-            if (+contentModified > +this.modified + 1 * 60 * 1000) {
+        parseModificationDate(tables).then((contentModification) => {
+            if (+contentModification > +this.modification + 1 * 60 * 1000) {
                 console.warn('modfied date in html was bigger than in http headers!! Overiding old value');
-                this.modified = contentModified;
+                this.modification = contentModification;
             }
         }).catch((err) => {
-            console.log('Error while parsing ModifiedDate in html', err.toString(), err.stack);
+            console.log('Error while parsing ModificationDate in html', err.toString(), err.stack);
         });
 
         this.messages = parseMessages(tables);

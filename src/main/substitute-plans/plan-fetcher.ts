@@ -1,7 +1,7 @@
 import { IncomingMessage } from 'http';
 import { ParsedPlan, parsePlan } from './parser';
 import { gymHerzRequest } from './gym-herz-server';
-import { ModifiedChecker } from './modified-checker';
+import { ModificationChecker } from './modification-checker';
 
 class PlanFetcherClass {
     private plansCache: { [wd: string]: PlanRequest | ParsedPlan | undefined } = {};
@@ -22,10 +22,10 @@ class PlanFetcherClass {
         return <string>(<any>message).body;
     }
 
-    private async fetchPlan(weekDay: string, modified: Date) {
+    private async fetchPlan(weekDay: string, modification: Date) {
         const cacheValue = this.plansCache[weekDay];
         if (cacheValue) {
-            if (cacheValue.modified >= modified) {
+            if (cacheValue.modification >= modification) {
                 return cacheValue instanceof PlanRequest ?
                     cacheValue.promise :
                     cacheValue;
@@ -33,7 +33,7 @@ class PlanFetcherClass {
         }
         const promise = this.fetchPlanRequest(weekDay)
             .then((result) => {
-                const parsedPlan = parsePlan(weekDay, modified, result);
+                const parsedPlan = parsePlan(weekDay, modification, result);
                 this.plansCache[weekDay] = parsedPlan;
                 return parsedPlan;
             })
@@ -41,19 +41,19 @@ class PlanFetcherClass {
                 this.plansCache[weekDay] = undefined;
                 throw err;
             });
-        this.plansCache[weekDay] = new PlanRequest(promise, modified);
+        this.plansCache[weekDay] = new PlanRequest(promise, modification);
         return promise;
     }
 
     // called by api endpoint
     public async getPlan(weekDay) {
-        const modified = await ModifiedChecker.getLastModifiedForDay(weekDay);
-        return this.fetchPlan(weekDay, modified);
+        const modification = await ModificationChecker.getLastModificationForDay(weekDay);
+        return this.fetchPlan(weekDay, modification);
     }
 
-    // called by ModifiedChecker
-    public notifyPlanModified(weekDay: string, modified: Date) {
-        this.fetchPlan(weekDay, modified)
+    // called by ModificationChecker
+    public notifyPlanModification(weekDay: string, modification: Date) {
+        this.fetchPlan(weekDay, modification)
             .catch((err) => {
                 console.log('Error in notifyPlanUpdate', err.toString(), err.stack);
             });
@@ -65,5 +65,5 @@ export const PlanFetcher = new PlanFetcherClass();
 class PlanRequest {
     constructor(
         public promise: Promise<ParsedPlan>,
-        public modified: Date) { }
+        public modification: Date) { }
 }

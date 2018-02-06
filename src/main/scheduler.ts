@@ -1,6 +1,6 @@
 import { fetchCurrentZoneOffset } from './db';
 import { setInterval, clearTimeout, setTimeout } from 'timers';
-import { ModifiedChecker } from './substitute-plans/modified-checker';
+import { ModificationChecker } from './substitute-plans/modification-checker';
 
 // In Europe/Berlin the Daylight saving clock change is always on 1 hour utc time
 const UTC_HOUR_TO_CHECK_OFFSET_CHANGE = [1, 2];
@@ -77,7 +77,7 @@ class SchedulerClass {
     }
 
     private checkModification = async () => {
-        await ModifiedChecker.recheckAll(this.timeoutForModificationCheck)
+        await ModificationChecker.recheckAll(this.timeoutForModificationCheck)
             .catch((err) => {
                 console.log('Error in scheduled checkModification', err.toString(), err.stack);
             });

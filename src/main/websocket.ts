@@ -2,7 +2,7 @@ import * as ws from 'ws';
 import { API_PATH } from './server';
 import { Server } from 'http';
 import { promisify } from 'util';
-import { ModifiedChecker } from './substitute-plans/modified-checker';
+import { ModificationChecker } from './substitute-plans/modification-checker';
 
 ws.prototype['sendAsync'] = promisify(ws.prototype.send);
 declare class MyWebSocket extends ws {
@@ -31,7 +31,8 @@ class WebsocketServerClass {
         //TODO auth
         return ['https://gh-app.tk',
             'https://backend-gh-app.herokuapp.com',
-            'http://localhost:3000'].includes(info.origin);
+            'http://localhost:3000',
+            'http://geccom:3000'].includes(info.origin);
     }
 
     private handleConnection = (socket: MyWebSocket) => {
@@ -54,12 +55,12 @@ class WebsocketServerClass {
             } else if (typeof data === 'string') {
                 const clientDate = new Date(data);
                 if (!isNaN(+clientDate)) {
-                    const serverDate = ModifiedChecker.peekLatestModified();
+                    const serverDate = ModificationChecker.peekLatestModification();
                     if (serverDate > clientDate) {
                         this.sendMessage(socket, serverDate.toUTCString());
                     }
                     return;
-            }
+                }
             }
             console.log('unknown message from ws client' + data);
         });
@@ -78,8 +79,8 @@ class WebsocketServerClass {
         console.log('ws', err.message);
     }
 
-    public notifyAllModified(latestModifiedDate: Date) {
-        const message = latestModifiedDate.toUTCString();
+    public notifyAllModification(latestModificationDate: Date) {
+        const message = latestModificationDate.toUTCString();
         this.server.clients.forEach((socket) => {
             this.sendMessage(<MyWebSocket>socket, message);
         })
