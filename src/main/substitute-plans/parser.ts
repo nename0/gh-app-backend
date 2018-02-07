@@ -82,7 +82,6 @@ function ifNotParseError(obj: any, name: string) {
 
 export class ParsedPlan {
     public planDate: Date;
-    public outdated: boolean = false;
     public messages: string = '';
     public substitutes: Substitute[] = [];
 
@@ -92,10 +91,6 @@ export class ParsedPlan {
         $: CheerioStatic
     ) {
         this.planDate = parsePlanDate($);
-        if (new Date(this.planDate).setUTCHours(23, 59, 59, 999) < Date.now()) {
-            this.outdated = true;
-            return;
-        }
 
         const tables = $('body>center>table');
         parseModificationDate(tables).then((contentModification) => {
