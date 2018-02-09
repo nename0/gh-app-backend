@@ -3,7 +3,7 @@ import { PlanFetcher } from './plan-fetcher';
 import { WEEK_DAYS } from './gym-herz-server';
 import { ModificationChecker } from './modification-checker';
 
-const API_CACHE_CONTROL = 'public, max-age=10, stale-while-revalidate=180';
+const API_CACHE_CONTROL = 'public, max-age=10, stale-while-revalidate=12';
 
 export function plansApi(app: express.IRouter<any>) {
     app.get('/plans/getLatestModification', async function(req, res) {
