@@ -48,7 +48,6 @@ class ModificationCheckerClass {
                 PlanFetcher.notifyPlanModification(weekDay, result);
                 if (result > this.latestModificationDate) {
                     this.latestModificationDate = result;
-                    this.tryNotifyGlobal();
                 }
                 this.modificationCache[weekDay] = result;
                 return result;

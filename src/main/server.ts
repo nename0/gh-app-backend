@@ -44,9 +44,9 @@ class MyServer {
         plansApi(this.apiRouter);
     }
 
-    public start() {
+    public async start() {
+        await Scheduler.start();
         this.server.listen(PORT, () => console.log(`Listening on ${PORT}`));
-        Scheduler.start();
     }
 
 }

@@ -1,0 +1,3 @@
+export const WSMESSAGE_LAST_MODIFICATION_QUERY = 'lm';
+export const WSMESSAGE_LAST_MODIFICATION_UPDATE = 'lm';
+export const WSMESSAGE_PUSH_SUBSCRIPTION = 'push';

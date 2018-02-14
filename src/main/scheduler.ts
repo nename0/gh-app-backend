@@ -86,7 +86,7 @@ class SchedulerClass {
 
     public async start() {
         setInterval(this.checkZoneOffset, 15 * 60 * 1000);
-        setImmediate(this.checkModification);
+        await this.checkModification();
     }
 }
 

@@ -3,6 +3,7 @@ import { API_PATH } from './server';
 import { Server } from 'http';
 import { promisify } from 'util';
 import { ModificationChecker } from './substitute-plans/modification-checker';
+import { WSMESSAGE_LAST_MODIFICATION_QUERY, WSMESSAGE_LAST_MODIFICATION_UPDATE, WSMESSAGE_PUSH_SUBSCRIPTION } from './websocket-mesages';
 
 ws.prototype['sendAsync'] = promisify(ws.prototype.send);
 declare class MyWebSocket extends ws {
@@ -31,13 +32,12 @@ class WebsocketServerClass {
         //TODO auth
         return ['https://gh-app.tk',
             'https://backend-gh-app.herokuapp.com',
-            'http://localhost:3000',
-            'http://geccom:3000'].includes(info.origin);
+            'http://localhost:9000',
+            'http://geccom:9000'].includes(info.origin);
     }
 
     private handleConnection = (socket: MyWebSocket) => {
-        // maybe it helps, maybe not
-        (<any>socket)._socket.setKeepAlive(true, 10);
+        (<any>socket)._socket.setTimeout(55000);
         //console.log('Client connected');
         //socket.on('close', () => {
         //    console.log('Client disconnected')
@@ -45,33 +45,42 @@ class WebsocketServerClass {
         socket.on('error', (err) => {
             console.log('ws', err.message);
         });
-        const sendPromise = promisify(socket.send.bind(socket));
-        socket.on('message', (data) => {
+        socket.on('message', this.handleMesage(socket));
+    }
+
+    private handleMesage(socket: MyWebSocket) {
+        return (data) => {
             if (data === '') {
                 if (!socket.lastSendTime || socket.lastSendTime + 30 * 1000 <= Date.now()) {
                     this.sendMessage(socket, '');
                 }
                 return;
             } else if (typeof data === 'string') {
-                const clientDate = new Date(data);
-                if (!isNaN(+clientDate)) {
-                    const serverDate = ModificationChecker.peekLatestModification();
-                    if (serverDate > clientDate) {
-                        this.sendMessage(socket, serverDate.toUTCString());
+                if (data.startsWith(WSMESSAGE_LAST_MODIFICATION_QUERY)) {
+                    const clientDate = new Date(data.slice(WSMESSAGE_LAST_MODIFICATION_QUERY.length));
+                    if (!isNaN(+clientDate)) {
+                        const serverDate = ModificationChecker.peekLatestModification();
+                        if (serverDate > clientDate) {
+                            this.sendMessage(socket, WSMESSAGE_LAST_MODIFICATION_UPDATE + serverDate.toUTCString());
+                        } else {
+                            this.sendMessage(socket, '');
+                        }
+                        return;
                     }
+                } else if (data.startsWith(WSMESSAGE_PUSH_SUBSCRIPTION)) {
+                    //TODO
                     return;
                 }
             }
             console.log('unknown message from ws client' + data);
-        });
+        }
     }
 
     private sendMessage(socket: MyWebSocket, obj: any) {
         if (socket.readyState === ws.OPEN) {
-            socket.sendAsync(obj).catch(this.handleError)
-                .then(() => {
-                    socket.lastSendTime = Date.now();
-                });
+            socket.sendAsync(obj).then(() => {
+                socket.lastSendTime = Date.now();
+            }).catch(this.handleError);
         }
     }
 
@@ -80,7 +89,7 @@ class WebsocketServerClass {
     }
 
     public notifyAllModification(latestModificationDate: Date) {
-        const message = latestModificationDate.toUTCString();
+        const message = WSMESSAGE_LAST_MODIFICATION_UPDATE + latestModificationDate.toUTCString();
         this.server.clients.forEach((socket) => {
             this.sendMessage(<MyWebSocket>socket, message);
         })

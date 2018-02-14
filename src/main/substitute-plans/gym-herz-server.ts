@@ -2,7 +2,7 @@ import { Agent } from 'http';
 
 const agent = new Agent({
     keepAlive: true,
-    keepAliveMsecs: 90000
+    keepAliveMsecs: 4000
 })
 
 export const gymHerzRequest = require('request-promise-native')
