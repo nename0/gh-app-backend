@@ -1,9 +1,11 @@
 import { Agent } from 'http';
 
+export const WEEK_DAYS = ['mo', 'di', 'mi', 'do', 'fr'];
+
 const agent = new Agent({
     keepAlive: true,
-    keepAliveMsecs: 4000
-})
+    maxSockets: 6
+});
 
 export const gymHerzRequest = require('request-promise-native')
     .defaults({
@@ -13,5 +15,3 @@ export const gymHerzRequest = require('request-promise-native')
         timeout: 4000,
         agent
     });
-
-export const WEEK_DAYS = ['mo', 'di', 'mi', 'do', 'fr'];

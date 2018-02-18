@@ -1,13 +1,17 @@
 import * as ws from 'ws';
 import { API_PATH } from './server';
-import { Server } from 'http';
+import { Server, IncomingMessage } from 'http';
 import { promisify } from 'util';
 import { ModificationChecker } from './substitute-plans/modification-checker';
 import { WSMESSAGE_LAST_MODIFICATION_QUERY, WSMESSAGE_LAST_MODIFICATION_UPDATE, WSMESSAGE_PUSH_SUBSCRIPTION } from './websocket-mesages';
+import { URLSearchParams } from 'url';
+import { PushMessaging } from './push';
 
 ws.prototype['sendAsync'] = promisify(ws.prototype.send);
 declare class MyWebSocket extends ws {
     lastSendTime: number | undefined;
+
+    fingerprint: string;
 
     sendAsync: (data: any) => Promise<void>;
 }
@@ -36,15 +40,21 @@ class WebsocketServerClass {
             'http://geccom:9000'].includes(info.origin);
     }
 
-    private handleConnection = (socket: MyWebSocket) => {
+    private handleConnection = (socket: MyWebSocket, req: IncomingMessage) => {
         (<any>socket)._socket.setTimeout(55000);
         //console.log('Client connected');
         //socket.on('close', () => {
         //    console.log('Client disconnected')
         //});
-        socket.on('error', (err) => {
-            console.log('ws', err.message);
-        });
+        const url: string = <string>req.url;
+        const searchParams = new URLSearchParams(url.slice(url.indexOf('?')));
+        const fingerprint = searchParams.get('fingerprint');
+        if (!fingerprint || fingerprint.length !== 56) {
+            socket.close(1002, 'missing fingerprint');
+            return;
+        }
+        socket.fingerprint = fingerprint;
+        socket.on('error', this.handleError);
         socket.on('message', this.handleMesage(socket));
     }
 
@@ -57,7 +67,7 @@ class WebsocketServerClass {
                 return;
             } else if (typeof data === 'string') {
                 if (data.startsWith(WSMESSAGE_LAST_MODIFICATION_QUERY)) {
-                    const clientDate = new Date(data.slice(WSMESSAGE_LAST_MODIFICATION_QUERY.length));
+                    const clientDate = new Date(data.substring(WSMESSAGE_LAST_MODIFICATION_QUERY.length));
                     if (!isNaN(+clientDate)) {
                         const serverDate = ModificationChecker.peekLatestModification();
                         if (serverDate > clientDate) {
@@ -68,8 +78,13 @@ class WebsocketServerClass {
                         return;
                     }
                 } else if (data.startsWith(WSMESSAGE_PUSH_SUBSCRIPTION)) {
-                    //TODO
-                    return;
+                    if (PushMessaging.onWebsocketMessage(
+                        socket.fingerprint,
+                        data.substring(WSMESSAGE_PUSH_SUBSCRIPTION.length))) {
+                        this.sendMessage(socket, '');
+                        return;
+                    }
+                    socket.close(1002, 'bad request');
                 }
             }
             console.log('unknown message from ws client' + data);
@@ -93,6 +108,15 @@ class WebsocketServerClass {
         this.server.clients.forEach((socket) => {
             this.sendMessage(<MyWebSocket>socket, message);
         })
+    }
+
+    public isBrowserConnected(fingerprint: string) {
+        for (const client of <Set<MyWebSocket>>this.server.clients) {
+            if (client.fingerprint === fingerprint) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

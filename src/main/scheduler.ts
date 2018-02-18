@@ -1,6 +1,7 @@
-import { fetchCurrentZoneOffset } from './db';
 import { setInterval, clearTimeout, setTimeout } from 'timers';
 import { ModificationChecker } from './substitute-plans/modification-checker';
+import { Database } from './db';
+import { PushMessaging } from './push';
 
 // In Europe/Berlin the Daylight saving clock change is always on 1 hour utc time
 const UTC_HOUR_TO_CHECK_OFFSET_CHANGE = [1, 2];
@@ -27,7 +28,7 @@ class SchedulerClass {
                 return;
             }
         }
-        this.currentZoneOffset = fetchCurrentZoneOffset()
+        this.currentZoneOffset = Database.fetchCurrentZoneOffset()
             .then((result) => {
                 this.lastOffsetCheckUTCHour = new Date();
                 this.scheduleModificationCheck();
@@ -87,6 +88,8 @@ class SchedulerClass {
     public async start() {
         setInterval(this.checkZoneOffset, 15 * 60 * 1000);
         await this.checkModification();
+        setInterval(PushMessaging.deleteOldSubscriptions, 24 * 3600 * 1000);
+        setTimeout(PushMessaging.deleteOldSubscriptions, 5 * 1000);
     }
 }
 

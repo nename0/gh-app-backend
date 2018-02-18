@@ -8,7 +8,7 @@ class ModificationCheckerClass {
     private modificationCache: { [wd: string]: Date | Promise<Date> | undefined } = {};
     private latestModificationDate = new Date(-1);
     private lastCheckTime = 0;
-    private globalNotifyLock = 0;
+    public globalNotifyLock = 0;
     private lastGlobalNotify = new Date(-1);
 
     constructor() { }
@@ -33,7 +33,7 @@ class ModificationCheckerClass {
         throw new Error('Bad response from www.gymnasium-herzogenaurach.de: ' + message.statusCode);
     }
 
-    private async checkModification(weekDay: string, deltaCheckMs: number) {
+    private checkModification(weekDay: string, deltaCheckMs: number) {
         const cacheValue = this.modificationCache[weekDay];
         if (cacheValue) {
             if (!(cacheValue instanceof Date)) {
@@ -112,10 +112,12 @@ class ModificationCheckerClass {
             return;
         }
         if (this.latestModificationDate > this.lastGlobalNotify) {
-            console.log('notifyAllModification', this.latestModificationDate);
+            console.log('notifyAllModification ' + this.latestModificationDate.toString());
             WebsocketServer.notifyAllModification(this.latestModificationDate);
             this.lastGlobalNotify = this.latestModificationDate;
         }
+
+        PlanFetcher.tryNotifyGlobal();
     }
 }
 

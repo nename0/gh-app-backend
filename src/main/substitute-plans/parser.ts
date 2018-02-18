@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { parseDateTime } from '../db';
+import { Database } from '../db';
 
 export function parsePlan(weekDay: string, modification: Date, html: string): ParsedPlan {
     const $ = cheerio.load(html);
@@ -30,8 +30,8 @@ function parseModificationDate(tables: Cheerio) {
     ifNotParseError(text[9] === ' ', 'header AktuellesDatum');
     const dateStr = text.substring(10);
 
-    //use postgreSQL to parse dateTime with correct time zone
-    return parseDateTime(dateStr);
+    //use PostgreSQL to parse dateTime with correct time zone
+    return Database.parseDateTime(dateStr);
 }
 
 function parseMessages(tables: Cheerio) {
