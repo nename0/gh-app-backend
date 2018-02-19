@@ -59,8 +59,8 @@ class DatabaseClass {
             client.query('SET TIME ZONE "Europe/Berlin"');
         });
 
-        this.pool.query('DELETE FROM push_dates')
-            .then(console.log, console.log)
+        //this.pool.query('DELETE FROM push_dates')
+        //    .then(console.log, console.log)
         //    .then(() => {
         //        pool.query(`SELECT * FROM push_subscription`)
         //            .then(console.log, console.log);

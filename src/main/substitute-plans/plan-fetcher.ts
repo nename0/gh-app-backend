@@ -17,7 +17,6 @@ class PlanFetcherClass {
     }
 
     private async fetchPlanRequest(weekDay: string) {
-        console.log('fetching plan', weekDay);
         const message: IncomingMessage = await gymHerzRequest.get({
             url: 'vertretung_filter/?wd=' + weekDay,
             gzip: true,
@@ -67,8 +66,10 @@ class PlanFetcherClass {
 
             const pushedDates = await this.pushedDates;
             if (pushedDates[weekDay] >= modification) {
+                console.log('fetched plan ' + weekDay + ' not pushing');
                 return;
             }
+            console.log('fetched plan ' + weekDay + ' pushing');
             pushedDates[weekDay] = modification; // in the database we do it later
             this.daysToNotify.add(weekDay);
         } catch (err) {
@@ -85,11 +86,11 @@ class PlanFetcherClass {
         }
         if (this.daysToNotify.size > 0) {
             const array = [...this.daysToNotify];
-            console.log('notifyPlanModifications ' + array);
+            console.log('pushPlanModifications ' + array);
             this.daysToNotify.clear();
             this.globalNotifyLock++;
             try {
-                await PushMessaging.notifyPlanModifications(array);
+                await PushMessaging.pushPlanModifications(array);
                 for (const weekDay of array) {
                     const cacheValue = this.plansCache[weekDay]
                     if (!cacheValue) {

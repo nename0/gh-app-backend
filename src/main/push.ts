@@ -12,7 +12,7 @@ https.globalAgent.maxSockets = 4;
 class PushMessagingClass {
     constructor() {
         setVapidDetails(
-            'mailto:nename97@googlamail.com',
+            'mailto:nename97@googlemail.com',
             publicKey,
             privateKey
         );
@@ -67,7 +67,7 @@ class PushMessagingClass {
     }
 
     // called by PlanFetcher
-    public notifyPlanModifications(weekDays: string[]) {
+    public pushPlanModifications(weekDays: string[]) {
         const payload = JSON.stringify(weekDays);
         let countErrors = 0;
         return Database.pushSubscriptionCursor(async (fingerprint, value) => {

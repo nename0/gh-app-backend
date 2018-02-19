@@ -43,8 +43,10 @@ class ModificationCheckerClass {
         const promise = this.checkModificationRequest(weekDay, cacheValue)
             .then((result) => {
                 if (result === cacheValue) {
+                    console.log('modification for ' + weekDay + ' unchanged: ' + result.toUTCString());
                     return result;
                 }
+                console.log('modification for ' + weekDay + ' changed: ' + result.toUTCString());
                 PlanFetcher.notifyPlanModification(weekDay, result);
                 if (result > this.latestModificationDate) {
                     this.latestModificationDate = result;
@@ -112,8 +114,8 @@ class ModificationCheckerClass {
             return;
         }
         if (this.latestModificationDate > this.lastGlobalNotify) {
-            console.log('notifyAllModification ' + this.latestModificationDate.toString());
-            WebsocketServer.notifyAllModification(this.latestModificationDate);
+            console.log('notifyLatestModification ' + this.latestModificationDate.toUTCString());
+            WebsocketServer.notifyLatestModification(this.latestModificationDate);
             this.lastGlobalNotify = this.latestModificationDate;
         }
 

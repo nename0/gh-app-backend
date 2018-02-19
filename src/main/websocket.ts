@@ -103,7 +103,7 @@ class WebsocketServerClass {
         console.log('ws', err.message);
     }
 
-    public notifyAllModification(latestModificationDate: Date) {
+    public notifyLatestModification(latestModificationDate: Date) {
         const message = WSMESSAGE_LAST_MODIFICATION_UPDATE + latestModificationDate.toUTCString();
         this.server.clients.forEach((socket) => {
             this.sendMessage(<MyWebSocket>socket, message);
