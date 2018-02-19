@@ -40,11 +40,11 @@ class ModificationCheckerClass {
                 return cacheValue;
             }
         }
-        const promise = this.checkModificationRequest(weekDay, cacheValue)
+        return this.modificationCache[weekDay] = this.checkModificationRequest(weekDay, cacheValue)
             .then((result) => {
                 if (result === cacheValue) {
-                    console.log('modification for ' + weekDay + ' unchanged: ' + result.toUTCString());
-                    return result;
+                    this.modificationCache[weekDay] = cacheValue;
+                    return cacheValue;
                 }
                 console.log('modification for ' + weekDay + ' changed: ' + result.toUTCString());
                 PlanFetcher.notifyPlanModification(weekDay, result);
@@ -58,8 +58,6 @@ class ModificationCheckerClass {
                 this.modificationCache[weekDay] = undefined;
                 throw err;
             });
-        this.modificationCache[weekDay] = promise;
-        return promise;
     }
 
     // called by api endpoint
