@@ -7,9 +7,10 @@ import { WEEK_DAYS } from './substitute-plans/gym-herz-server';
 //`CREATE TABLE push_subscription (
 //   browser_fingerprint     char(56)  PRIMARY KEY NOT NULL,
 //   subscription    text UNIQUE NOT NULL,
-//   update_time timestamptz NOT NULL);`
+//   update_time timestamptz NOT NULL,
+//   filter text);`
 
-//`CREATE OR REPLACE FUNCTION upsert_push_subscription(fingerprint char(56), newSubscription text) RETURNS INTEGER AS $$
+//`CREATE OR REPLACE FUNCTION upsert_push_subscription(fingerprint char(56), newSubscription text, newFilter text) RETURNS INTEGER AS $$
 // DECLARE
 //   now TIMESTAMPTZ := now();
 // BEGIN
@@ -22,13 +23,13 @@ import { WEEK_DAYS } from './substitute-plans/gym-herz-server';
 //         END IF;
 //
 //         BEGIN
-//             INSERT INTO push_subscription VALUES (fingerprint, newSubscription, now)
-//                 ON CONFLICT (browser_fingerprint) DO UPDATE SET subscription = newSubscription, update_time = now;
+//             INSERT INTO push_subscription VALUES (fingerprint, newSubscription, now, newFilter)
+//                 ON CONFLICT (browser_fingerprint) DO UPDATE SET subscription = newSubscription, update_time = now, filter = newFilter;
 //             RETURN 0;
 //         EXCEPTION WHEN unique_violation THEN
 //         BEGIN
-//                 INSERT INTO push_subscription VALUES (fingerprint, newSubscription, now)
-//                     ON CONFLICT (subscription) DO UPDATE SET browser_fingerprint = fingerprint, update_time = now;
+//                 INSERT INTO push_subscription VALUES (fingerprint, newSubscription, now, newFilter)
+//                     ON CONFLICT (subscription) DO UPDATE SET browser_fingerprint = fingerprint, update_time = now, filter = newFilter;
 //                 RETURN 1;
 //             EXCEPTION WHEN unique_violation THEN
 //                 -- Do nothing, and loop to try the UPDATE again.
@@ -38,9 +39,9 @@ import { WEEK_DAYS } from './substitute-plans/gym-herz-server';
 // END;
 // $$ LANGUAGE PLPGSQL;`
 
-//`CREATE TABLE push_dates (
+//`CREATE TABLE pushed_hashes (
 //    weekday     char(2)  PRIMARY KEY NOT NULL,
-//    last_date timestamptz NOT NULL);`
+//    value       text NOT NULL);`
 
 Cursor.prototype.readAsync = promisify(Cursor.prototype.read);
 Cursor.prototype.closeAsync = promisify(Cursor.prototype.close);
@@ -59,7 +60,7 @@ class DatabaseClass {
             client.query('SET TIME ZONE "Europe/Berlin"');
         });
 
-        //this.pool.query('DELETE FROM push_dates')
+        //this.pool.query(`DELETE FROM pushed_hashes`)
         //    .then(console.log, console.log)
         //    .then(() => {
         //        pool.query(`SELECT * FROM push_subscription`)
@@ -99,37 +100,38 @@ class DatabaseClass {
         return sign * (hour * 60 + minute);
     }
 
-    public async getWeekDayPushDates(): Promise<{ [wd: string]: Date }> {
+    public async getPushedHashes(): Promise<{ [wd: string]: { [filter: string]: string } }> {
         const query = {
-            text: 'select * from push_dates',
+            text: 'select * from pushed_hashes',
             rowMode: 'array'
         }
         const result = await this.pool.query(query);
-        const map: { [wd: string]: Date } = result.rows.reduce((obj, row) => {
-            obj[row[0]] = row[1];
-            return obj;
-        }, {});
+        const map: { [wd: string]: { [filter: string]: string } } =
+            result.rows.reduce((newMap, row) => {
+                newMap[row[0]] = JSON.parse(row[1]);
+                return newMap;
+            }, {});
         for (const wd of WEEK_DAYS) {
             if (!(wd in map)) {
-                map[wd] = new Date(-1);
+                map[wd] = {};
             }
         }
         return map;
     }
-    public async updateWeekDayPushDate(weekDay: string, date: Date) {
+    public async updatePushHashesForWeekDay(weekDay: string, value: { [filter: string]: string }) {
         const query = {
-            name: 'update-push-dates',
-            text: 'INSERT INTO push_dates VALUES ($1, $2) ON CONFLICT (weekday) DO UPDATE SET last_date = $2',
-            values: [weekDay, date]
+            name: 'update-pushed-hashes',
+            text: 'INSERT INTO pushed_hashes VALUES ($1, $2) ON CONFLICT (weekday) DO UPDATE SET value = $2',
+            values: [weekDay, JSON.stringify(value)]
         }
         await this.pool.query(query);
     }
 
-    public async upsertPushSubscription(fingerprint: string, value: string) {
+    public async upsertPushSubscription(fingerprint: string, value: string, filter: string) {
         const query = {
             name: 'upsert-push-subscription',
-            text: 'select upsert_push_subscription($1, $2)',
-            values: [fingerprint, value]
+            text: 'select upsert_push_subscription($1, $2, $3)',
+            values: [fingerprint, value, filter]
         }
         await this.pool.query(query);
     }
@@ -152,8 +154,14 @@ class DatabaseClass {
         return result.rowCount;
     }
 
-    public async pushSubscriptionCursor(foreach: (fingerprint: string, value: string) => Promise<void>) {
-        const cursor = new Cursor('select push_subscription.browser_fingerprint, push_subscription.subscription from push_subscription', [], { rowMode: 'array' });
+    public async pushSubscriptionCursor(
+        foreach: (fingerprint: string, value: string, filter: string) => Promise<void>
+    ) {
+        const cursor = new Cursor(
+            'select push_subscription.browser_fingerprint, push_subscription.subscription, push_subscription.filter from push_subscription',
+            [],
+            { rowMode: 'array' }
+        );
         const client = await this.pool.connect();
         try {
             client.query(cursor);
@@ -163,7 +171,7 @@ class DatabaseClass {
                     break;
                 }
                 await Promise.all(rows.map((row) =>
-                    foreach(row[0], row[1])
+                    foreach(row[0], row[1], row[2])
                 ));
             }
             await cursor.closeAsync();

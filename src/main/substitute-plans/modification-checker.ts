@@ -5,11 +5,11 @@ import { gymHerzRequest, WEEK_DAYS } from './gym-herz-server';
 import { WebsocketServer } from '../websocket';
 
 class ModificationCheckerClass {
-    private modificationCache: { [wd: string]: Date | Promise<Date> | undefined } = {};
+    private modificationsCache: { [wd: string]: Date | undefined } = {};
     private latestModificationDate = new Date(-1);
     private lastCheckTime = 0;
-    public globalNotifyLock = 0;
-    private lastGlobalNotify = new Date(-1);
+    public isChecking = false;
+    public modificationHash: string = '';
 
     constructor() { }
 
@@ -34,28 +34,18 @@ class ModificationCheckerClass {
     }
 
     private checkModification(weekDay: string, deltaCheckMs: number) {
-        const cacheValue = this.modificationCache[weekDay];
-        if (cacheValue) {
-            if (!(cacheValue instanceof Date)) {
-                return cacheValue;
-            }
-        }
-        return this.modificationCache[weekDay] = this.checkModificationRequest(weekDay, cacheValue)
+        const cacheValue = this.modificationsCache[weekDay];
+        return this.checkModificationRequest(weekDay, cacheValue)
             .then((result) => {
                 if (result === cacheValue) {
-                    this.modificationCache[weekDay] = cacheValue;
                     return cacheValue;
                 }
                 console.log('modification for ' + weekDay + ' changed: ' + result.toUTCString());
                 PlanFetcher.notifyPlanModification(weekDay, result);
-                if (result > this.latestModificationDate) {
-                    this.latestModificationDate = result;
-                }
-                this.modificationCache[weekDay] = result;
                 return result;
             })
             .catch((err) => {
-                this.modificationCache[weekDay] = undefined;
+                this.modificationsCache[weekDay] = undefined;
                 throw err;
             });
     }
@@ -66,58 +56,76 @@ class ModificationCheckerClass {
         return this.latestModificationDate;
     }
 
-    // called by websocket
-    public peekLatestModification() {
-        // just call don't await
-        this.recheckAll(45000).catch((err) => {
-            console.log('Error in recheckAll', err.toString(), err.stack);
-        });
-        return this.latestModificationDate;
-    }
-
     // called when plan is fetched by api endpoint
     public async getLastModificationForDay(weekDay: string) {
-        let cacheValue = this.modificationCache[weekDay];
+        let cacheValue = this.modificationsCache[weekDay];
         if (!cacheValue) {
             await this.recheckAll(45000);
-            cacheValue = this.modificationCache[weekDay]
+            cacheValue = this.modificationsCache[weekDay]
             if (!cacheValue) { throw new Error('should not happen in getLastModificationForDay'); }
         }
         return cacheValue;
     }
 
     public async recheckAll(deltaCheckMs: number) {
-        if (Date.now() < this.lastCheckTime + deltaCheckMs) {
-            console.log('checkModification skipped: delta <', deltaCheckMs);
+        const lastCheckTime = this.lastCheckTime;
+        if (this.isChecking || Date.now() < lastCheckTime + deltaCheckMs) {
+            console.log('recheckAllModification  skipped: delta <', deltaCheckMs);
             return;
         }
-        console.log('checkModification: delta >', deltaCheckMs);
-        // lock to prevent multiple notifys
-        this.globalNotifyLock++;
+        console.log('recheckAllModification: delta >', deltaCheckMs);
+        this.isChecking = true;
         try {
-            await Promise.all(
+            this.lastCheckTime = Date.now();
+            const dates = await Promise.all(
                 WEEK_DAYS.map((weekDay) => {
                     return this.checkModification(weekDay, deltaCheckMs);
                 })
             );
-            this.lastCheckTime = Date.now();
+            if (this.updateModificationHashIfChanged(dates)) {
+                console.log('notifyModificationHash ' + this.latestModificationDate.toUTCString());
+                WebsocketServer.notifyModificationHash(this.modificationHash);
+            }
+        } catch (err) {
+            // reset lastCheckTime
+            this.lastCheckTime = lastCheckTime;
+            throw err;
         } finally {
-            this.globalNotifyLock--;
-            this.tryNotifyGlobal();
+            this.isChecking = false;
+            PlanFetcher.tryNotifyGlobal();
         }
     }
 
-    private tryNotifyGlobal() {
-        if (this.globalNotifyLock > 0) {
-            return;
+    private updateModificationHashIfChanged(dates: Date[]): boolean {
+        if (dates.length !== WEEK_DAYS.length) {
+            throw new Error('updateModificationHashIfChanged: array length mismatch');
         }
-        if (this.latestModificationDate > this.lastGlobalNotify) {
-            console.log('notifyLatestModification ' + this.latestModificationDate.toUTCString());
-            WebsocketServer.notifyLatestModification(this.latestModificationDate);
-            this.lastGlobalNotify = this.latestModificationDate;
+        // the modification dates only have second resolution
+        const utcSeconds = dates.map((date) => date.getTime() / 1000);
+        const hashNumbersCount = 2;
+        const iterationsCount = 4;
+        const hashNumbers: number[] = Array(hashNumbersCount).fill(0);
+        let resultIndex = 0;
+        for (let i = 0; i < iterationsCount; i++) {
+            for (const secondsValue of utcSeconds) {
+                // tslint:disable-next-line:no-bitwise
+                const value = secondsValue >>> i * 6;
+                hashNumbers[resultIndex] = (hashNumbers[resultIndex] * 31 + value) % Number.MAX_SAFE_INTEGER;
+                resultIndex = (resultIndex + 1) % hashNumbersCount;
+            }
         }
-
-        PlanFetcher.tryNotifyGlobal();
+        const hash = hashNumbers
+            .map((n) => n.toString(16).padStart(14, '0'))  // pad each to 14 chars
+            .join('');
+        if (this.modificationHash !== hash) {
+            this.modificationHash = hash;
+            this.latestModificationDate = dates.reduce((maximum, date) =>
+                maximum < date ? date : maximum,
+                new Date(-1));
+            WEEK_DAYS.forEach((wd, index) => this.modificationsCache[wd] = dates[index]);
+            return true;
+        }
+        return false;
     }
 }
 

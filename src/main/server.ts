@@ -1,4 +1,5 @@
 import * as express from 'express';
+import * as compression from 'compression';
 import 'express-async-errors';
 import * as path from 'path';
 import { Server, createServer } from 'http';
@@ -41,6 +42,7 @@ class MyServer {
     }
 
     api() {
+        this.apiRouter.use(compression());
         plansApi(this.apiRouter);
     }
 

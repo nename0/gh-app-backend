@@ -15,7 +15,7 @@ class SchedulerClass {
     timerForModificationCheck!: NodeJS.Timer;
 
     constructor() {
-        this.currentZoneOffset = new Promise(() => { });
+        this.currentZoneOffset = Promise.resolve(-60); // wild guess should never be used
         this.checkZoneOffset();
     }
 
@@ -32,6 +32,7 @@ class SchedulerClass {
             .then((result) => {
                 this.lastOffsetCheckUTCHour = new Date();
                 this.scheduleModificationCheck();
+                console.log('zone offset: ' + result);
                 return result;
             })
             .catch((err) => {
@@ -40,7 +41,7 @@ class SchedulerClass {
             });
     }
 
-    async getLocalDateTime() {
+    public async getLocalDateTime() {
         const toZoneOffset = -(await this.currentZoneOffset);
         const now = new Date();
         const diffOffset = toZoneOffset + now.getTimezoneOffset();
@@ -86,6 +87,7 @@ class SchedulerClass {
     }
 
     public async start() {
+        await this.currentZoneOffset;
         setInterval(this.checkZoneOffset, 15 * 60 * 1000);
         await this.checkModification();
         setInterval(PushMessaging.deleteOldSubscriptions, 24 * 3600 * 1000);

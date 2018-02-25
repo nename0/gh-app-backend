@@ -9,12 +9,9 @@ class PlanFetcherClass {
     private plansCache: { [wd: string]: PlanRequest | ParsedPlan | undefined } = {};
 
     private globalNotifyLock = 0;
-    private pushedDates: Promise<{ [wd: string]: Date }>;
     private daysToNotify: Set<string> = new Set();
 
-    constructor() {
-        this.pushedDates = Database.getWeekDayPushDates();
-    }
+    constructor() { }
 
     private async fetchPlanRequest(weekDay: string) {
         const message: IncomingMessage = await gymHerzRequest.get({
@@ -63,17 +60,9 @@ class PlanFetcherClass {
         this.globalNotifyLock++;
         try {
             await this.fetchPlan(weekDay, modification);
-
-            const pushedDates = await this.pushedDates;
-            if (pushedDates[weekDay] >= modification) {
-                console.log('fetched plan ' + weekDay + ' not pushing');
-                return;
-            }
-            console.log('fetched plan ' + weekDay + ' pushing');
-            pushedDates[weekDay] = modification; // in the database we do it later
             this.daysToNotify.add(weekDay);
         } catch (err) {
-            console.log('Error in PlanFetcher.notifyPlanModification', err.toString(), err.stack);
+            console.log('Error in PlanFetcher.fetchPlan', err.toString(), err.stack);
         } finally {
             this.globalNotifyLock--;
             this.tryNotifyGlobal();
@@ -81,26 +70,27 @@ class PlanFetcherClass {
     }
 
     public async tryNotifyGlobal() {
-        if (ModificationChecker.globalNotifyLock > 0 || this.globalNotifyLock > 0) {
+        if (ModificationChecker.isChecking || this.globalNotifyLock > 0) {
             return;
         }
         if (this.daysToNotify.size > 0) {
-            const array = [...this.daysToNotify];
-            console.log('pushPlanModifications ' + array);
+            const array = Array.from(this.daysToNotify)
+            console.log('notifyPlanModifications ' + array);
             this.daysToNotify.clear();
             this.globalNotifyLock++;
             try {
-                await PushMessaging.pushPlanModifications(array);
-                for (const weekDay of array) {
-                    const cacheValue = this.plansCache[weekDay]
+                const plans = await Promise.all(array.map((weekDay) => {
+                    const cacheValue = this.plansCache[weekDay];
                     if (!cacheValue) {
-                        continue;
+                        throw new Error('cacheValue for ' + weekDay + ' was undefined');
                     }
-                    await Database.updateWeekDayPushDate(weekDay, cacheValue.modification)
-                }
+                    if (cacheValue instanceof PlanRequest) {
+                        return cacheValue.promise;
+                    }
+                    return cacheValue;
+                }));
+                await PushMessaging.notifyPlanModifications(plans);
             } catch (err) {
-                // restore old values
-                this.pushedDates = Database.getWeekDayPushDates();
                 console.log('Error in PlanFetcher.tryNotifyGlobal', err.toString(), err.stack);
             } finally {
                 this.globalNotifyLock--;

@@ -3,14 +3,16 @@ import { PlanFetcher } from './plan-fetcher';
 import { WEEK_DAYS } from './gym-herz-server';
 import { ModificationChecker } from './modification-checker';
 
-const API_CACHE_CONTROL = 'public, max-age=10, stale-while-revalidate=12';
+const API_CACHE_CONTROL = 'public, max-age=5, stale-while-revalidate=12';
 
 export function plansApi(app: express.IRouter<any>) {
-    app.get('/plans/getLatestModification', async function(req, res) {
+    app.get('/plans/getModificationHash', async function(req, res) {
         const date = await ModificationChecker.getLatestModification();
+        const hash = ModificationChecker.modificationHash;
         res.set({
             'cache-control': API_CACHE_CONTROL,
-            'last-modified': date.toUTCString()
+            'last-modified': date.toUTCString(),
+            'etag': hash
         });
         res.status(204).send();
     });

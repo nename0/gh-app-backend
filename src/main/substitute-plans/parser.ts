@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import { Database } from '../db';
+import { FilteredPlan } from './filter';
 
 export function parsePlan(weekDay: string, modification: Date, html: string): ParsedPlan {
     const $ = cheerio.load(html);
@@ -40,12 +41,18 @@ function parseMessages(tables: Cheerio) {
         return '';
     }
     const elements = <CheerioElement[]><any>messagesHtml.contents().get();
+    let prevWasLineBreak = false;
     return elements.map((elem: CheerioElement) => {
         if (elem.type === 'tag') {
             ifNotParseError(elem.name === 'br', 'tabelleMitteilungen');
+            prevWasLineBreak = true;
             return '\r\n';
         } else {
             ifNotParseError(elem.type === 'text', 'tabelleMitteilungen');
+            if (prevWasLineBreak) {
+                prevWasLineBreak = false;
+                return (<string>elem.data).trim();
+            }
             return elem.data;
         }
     }).join('');
@@ -83,7 +90,7 @@ function ifNotParseError(obj: any, name: string) {
 export class ParsedPlan {
     public planDate: Date;
     public messages: string = '';
-    public substitutes: Substitute[] = [];
+    public filtered: FilteredPlan;
 
     constructor(
         public weekDay: string,
@@ -104,7 +111,8 @@ export class ParsedPlan {
 
         this.messages = parseMessages(tables);
 
-        this.substitutes = parseSubstitutes(tables);
+        const substitutes = parseSubstitutes(tables);
+        this.filtered = new FilteredPlan(substitutes, this.planDate);
     }
 };
 
