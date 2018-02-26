@@ -9,6 +9,7 @@ class ModificationCheckerClass {
     private latestModificationDate = new Date(-1);
     private lastCheckTime = 0;
     public isChecking = false;
+    private recheckAllPromise?: Promise<void>;
     public modificationHash: string = '';
 
     constructor() { }
@@ -71,21 +72,14 @@ class ModificationCheckerClass {
         const lastCheckTime = this.lastCheckTime;
         if (this.isChecking || Date.now() < lastCheckTime + deltaCheckMs) {
             console.log('recheckAllModification  skipped: delta <', deltaCheckMs);
-            return;
+            return this.recheckAllPromise;
         }
         console.log('recheckAllModification: delta >', deltaCheckMs);
-        this.isChecking = true;
         try {
             this.lastCheckTime = Date.now();
-            const dates = await Promise.all(
-                WEEK_DAYS.map((weekDay) => {
-                    return this.checkModification(weekDay, deltaCheckMs);
-                })
-            );
-            if (this.updateModificationHashIfChanged(dates)) {
-                console.log('notifyModificationHash ' + this.latestModificationDate.toUTCString());
-                WebsocketServer.notifyModificationHash(this.modificationHash);
-            }
+            this.isChecking = true;
+            this.recheckAllPromise = this.doRecheckAll(deltaCheckMs);
+            await this.recheckAllPromise;
         } catch (err) {
             // reset lastCheckTime
             this.lastCheckTime = lastCheckTime;
@@ -93,6 +87,18 @@ class ModificationCheckerClass {
         } finally {
             this.isChecking = false;
             PlanFetcher.tryNotifyGlobal();
+        }
+    }
+
+    private async doRecheckAll(deltaCheckMs: number) {
+        const dates = await Promise.all(
+            WEEK_DAYS.map((weekDay) => {
+                return this.checkModification(weekDay, deltaCheckMs);
+            })
+        );
+        if (this.updateModificationHashIfChanged(dates)) {
+            console.log('notifyModificationHash ' + this.latestModificationDate.toUTCString());
+            WebsocketServer.notifyModificationHash(this.modificationHash);
         }
     }
 
