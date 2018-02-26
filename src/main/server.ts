@@ -6,9 +6,12 @@ import { Server, createServer } from 'http';
 import { plansApi } from './substitute-plans/api';
 import { Scheduler } from './scheduler';
 import { WebsocketServer } from './websocket';
+import * as expressStaticGzip from 'express-static-gzip';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-const PUBLIC = path.join(__dirname, '../www');
+const STATIC_WWW_PATH = path.join(__dirname, '../www');
+
+const HASH_IN_FILENAME_REGEX = /[0-9a-f]{20,}/;
 
 export const API_PATH = '/api/v1'
 
@@ -22,7 +25,7 @@ class MyServer {
         this.app = express();
         this.config();
 
-        this.routes();
+        this.staticWWW();
 
         this.apiRouter = express.Router();
         this.app.use(API_PATH, this.apiRouter);
@@ -37,8 +40,19 @@ class MyServer {
         this.app.disable('x-powered-by');
     }
 
-    routes() {
-        this.app.use(express.static(PUBLIC));
+    staticWWW() {
+        this.app.use(expressStaticGzip(STATIC_WWW_PATH, {
+            enableBrotli: true,
+            setHeaders(res, filePath, stat) {
+                filePath = filePath.replace(/\\/g, '/');
+                const filename = filePath.substring(filePath.lastIndexOf('/'));
+                if (HASH_IN_FILENAME_REGEX.test(filename)) {
+                    res.set('cache-control', 'public, max-age=' + (6 * 30 * 24 * 3600));
+                } else {
+                    res.set('cache-control', 'public, max-age=' + (3 * 60));
+                }
+            }
+        }));
     }
 
     api() {
