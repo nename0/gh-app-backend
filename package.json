@@ -31,6 +31,6 @@
   "scripts": {
     "build": "tsc",
     "start": "node ./target/main/server.js",
-    "build-heroku": "yarn run copy app.json package.json Procfile target && yarn run rimraf target/main && yarn run tsc"
+    "build-heroku": "yarn run copy yarn.lock package.json Procfile target && yarn run rimraf target/main && yarn run tsc"
   }
 }

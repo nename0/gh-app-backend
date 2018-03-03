@@ -1,9 +1,0 @@
-{
-  "name": "gh-app-backend",
-  "description": "Backend for gh-app",
-  "buildpacks": [
-    {
-      "url": "heroku/nodejs"
-    }
-  ]
-}

@@ -49,9 +49,7 @@ class Hasher {
         const hash = this.numbers
             .map((n) => n.toString(16).padStart(14, '0'))  // pad each to 14 chars
             .join('');
-        const normalizedDate = new Date(planDate);
-        normalizedDate.setUTCHours(0, 0, 0, 0);
-        const utcDate = normalizedDate.getTime() / (24 * 3600 * 1000);
+        const utcDate = new Date(planDate).setUTCHours(0, 0, 0, 0) / (24 * 3600 * 1000);
         return utcDate.toString(16).padStart(6, '0') + hash;
     }
 };
@@ -60,9 +58,7 @@ export function isFilterHashFromDate(hash: string, date: Date) {
     if (hash.length !== 34) {
         throw new Error('isFilterHashFromDate: hash has wrong length: ' + hash);
     }
-    const normalizedDate = new Date(date);
-    normalizedDate.setUTCHours(0, 0, 0, 0);
-    const utcDate = normalizedDate.getTime() / (24 * 3600 * 1000);
+    const utcDate = new Date(date).setUTCHours(0, 0, 0, 0) / (24 * 3600 * 1000);
     const utcDateHash = parseInt(hash.slice(0, 6), 16);
     return utcDate === utcDateHash;
 }

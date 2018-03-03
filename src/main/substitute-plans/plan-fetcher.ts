@@ -92,6 +92,7 @@ class PlanFetcherClass {
                 await PushMessaging.notifyPlanModifications(plans);
             } catch (err) {
                 console.log('Error in PlanFetcher.tryNotifyGlobal', err.toString(), err.stack);
+                array.forEach((wd) => this.daysToNotify.add(wd));
             } finally {
                 this.globalNotifyLock--;
                 setImmediate(() => this.tryNotifyGlobal());

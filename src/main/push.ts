@@ -110,8 +110,8 @@ class PushMessagingClass {
                 .filter((filter) => !(filter in plan.filtered.filterHashes));
             for (const removedFilter of removedFilters) {
                 const oldHash = pushedHashesOfWeekDay[removedFilter];
+                delete pushedHashesOfWeekDay[removedFilter];
                 if (isFilterHashFromDate(oldHash, plan.planDate)) {
-                    delete pushedHashesOfWeekDay[removedFilter];
                     changedWeekDays.add(weekDay);
                     changedWeekDaysPerFilter[removedFilter] = changedWeekDaysPerFilter[removedFilter] || [];
                     changedWeekDaysPerFilter[removedFilter].push(weekDay);
@@ -123,9 +123,13 @@ class PushMessagingClass {
             return;
         }
         console.log('Pushing ' + JSON.stringify(changedWeekDaysPerFilter));
-
-        await this.sendPushNotifications(changedWeekDaysPerFilter, ttlValues);
-
+        try {
+            await this.sendPushNotifications(changedWeekDaysPerFilter, ttlValues);
+        } catch (err) {
+            // reset pushedHashes
+            this.pushedHashes = Database.getPushedHashes();
+            throw err;
+        }
         for (const weekDay of changedWeekDays) {
             Database.updatePushHashesForWeekDay(weekDay, pushedHashes[weekDay]);
         }

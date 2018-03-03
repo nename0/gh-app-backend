@@ -102,8 +102,8 @@ export class ParsedPlan {
         const tables = $('body>center>table');
         parseModificationDate(tables).then((contentModification) => {
             if (+contentModification > +this.modification + 1 * 60 * 1000) {
-                console.warn('modfied date in html was bigger than in http headers!! Overiding old value');
-                this.modification = contentModification;
+                console.warn('!!modfied date in html was bigger than in http headers!!');
+                //this.modification = contentModification;
             }
         }).catch((err) => {
             console.log('Error while parsing ModificationDate in html', err.toString(), err.stack);
