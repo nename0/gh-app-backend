@@ -7,6 +7,9 @@ const agent = new Agent({
     maxSockets: 6
 });
 
+// to prevent DDOSing the server
+export const REQUEST_RETRY_TIME = 2500;
+
 export const gymHerzRequest = require('request-promise-native')
     .defaults({
         baseUrl: 'http://www.gymnasium-herzogenaurach.de/',

@@ -1,6 +1,6 @@
 import { IncomingMessage } from 'http';
 import { ParsedPlan, parsePlan } from './parser';
-import { gymHerzRequest } from './gym-herz-server';
+import { gymHerzRequest, REQUEST_RETRY_TIME } from './gym-herz-server';
 import { ModificationChecker } from './modification-checker';
 import { PushMessaging } from '../push';
 import { Database } from '../db';
@@ -42,7 +42,12 @@ class PlanFetcherClass {
                 return parsedPlan;
             })
             .catch((err) => {
+                setTimeout(() => {
+                    const cacheValue2 = this.plansCache[weekDay];
+                    if (cacheValue2 instanceof PlanRequest && cacheValue2.promise === promise) {
                 this.plansCache[weekDay] = undefined;
+                    }
+                }, REQUEST_RETRY_TIME)
                 throw err;
             });
         this.plansCache[weekDay] = new PlanRequest(promise, modification);
@@ -95,7 +100,6 @@ class PlanFetcherClass {
                 array.forEach((wd) => this.daysToNotify.add(wd));
             } finally {
                 this.globalNotifyLock--;
-                setImmediate(() => this.tryNotifyGlobal());
             }
         }
     }

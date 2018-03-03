@@ -1,7 +1,7 @@
 import { IncomingMessage } from 'http';
 import { ParsedPlan } from './parser';
 import { PlanFetcher } from './plan-fetcher';
-import { gymHerzRequest, WEEK_DAYS } from './gym-herz-server';
+import { gymHerzRequest, WEEK_DAYS, REQUEST_RETRY_TIME } from './gym-herz-server';
 import { WebsocketServer } from '../websocket';
 
 class ModificationCheckerClass {
@@ -82,7 +82,7 @@ class ModificationCheckerClass {
             await this.recheckAllPromise;
         } catch (err) {
             // reset lastCheckTime
-            this.lastCheckTime = lastCheckTime;
+            this.lastCheckTime = Date.now() - deltaCheckMs + REQUEST_RETRY_TIME;
             throw err;
         } finally {
             this.isChecking = false;
