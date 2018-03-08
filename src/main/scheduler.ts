@@ -49,25 +49,33 @@ class SchedulerClass {
         return now;
     }
 
-    async isBurstTime() {
+    async getModificationCheckTimeout() {
         const localDateTime = (await this.getLocalDateTime());
+        // Sunday (0) to Saturday (6)
+        if (localDateTime.getDay() === 0 || localDateTime.getDay() === 6) {
+            return 15 * 60 * 1000;
+        }
         const localHour = localDateTime.getHours();
         const localMinute = localDateTime.getMinutes();
+        let isBurstTime = false;
         switch (localHour) {
             case 7:
-                return localMinute > 30;
+                isBurstTime = localMinute > 30;
+                break;
             case 8:
-                return localMinute < 30;
+                isBurstTime = localMinute < 30;
+                break;
             case 12:
-                return localMinute > 30;
+                isBurstTime = localMinute > 30;
+                break;
             case 13:
-                return localMinute < 30;
+                isBurstTime = localMinute < 30;
         }
-        return false;
+        return isBurstTime ? 10 * 1000 : 4 * 60 * 1000;
     }
 
     private async scheduleModificationCheck() {
-        const timeout = (await this.isBurstTime()) ? 10 * 1000 : 4 * 60 * 1000;
+        const timeout = await this.getModificationCheckTimeout();
         if (this.timeoutForModificationCheck !== timeout) {
             console.log('Changing timeout for ModificationCheck to', timeout);
             this.timeoutForModificationCheck = timeout;

@@ -60,8 +60,11 @@ class DatabaseClass {
             client.query('SET TIME ZONE "Europe/Berlin"');
         });
 
-        //this.pool.query(`DELETE FROM pushed_hashes`)
+        //this.pool.query(`SELECT * FROM pushed_hashes WHERE weekday = 'do'`)
         //    .then(console.log, console.log)
+        //    .then(() => {
+        //        process.exit(1234);
+        //    })
         //    .then(() => {
         //        pool.query(`SELECT * FROM push_subscription`)
         //            .then(console.log, console.log);

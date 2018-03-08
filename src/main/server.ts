@@ -47,7 +47,7 @@ class MyServer {
                 filePath = filePath.replace(/\\/g, '/');
                 const filename = filePath.substring(filePath.lastIndexOf('/'));
                 if (HASH_IN_FILENAME_REGEX.test(filename)) {
-                    res.set('cache-control', 'public, max-age=' + (6 * 30 * 24 * 3600));
+                    res.set('cache-control', 'public, immutable, max-age=' + (6 * 30 * 24 * 3600));
                 } else {
                     res.set('cache-control', 'public, max-age=' + (3 * 60));
                 }
