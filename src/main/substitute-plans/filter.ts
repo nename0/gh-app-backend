@@ -97,44 +97,53 @@ export class FilteredPlan {
             if (classText.lastIndexOf('_') !== -1) {
                 classText = classText.substr(0, classText.lastIndexOf('_'));
             }
-
-            let isQClass = false;
-            if (classText.includes(Q11_FILTER)) {
-                isQClass = true;
-                hasherPerFilter[Q11_FILTER].hashSubstitute(substitute);
-                this.filteredSubstitutes[Q11_FILTER].push(substitute);
-            }
-            if (classText.includes(Q12_FILTER)) {
-                isQClass = true;
-                hasherPerFilter[Q12_FILTER].hashSubstitute(substitute);
-                this.filteredSubstitutes[Q12_FILTER].push(substitute);
-            }
-            if (classText.includes(Q13_FILTER)) {
-                isQClass = true;
-                hasherPerFilter[Q13_FILTER].hashSubstitute(substitute);
-                this.filteredSubstitutes[Q13_FILTER].push(substitute);
-            }
-            if (isQClass) {
-                continue;
-            }
-            // this will parse the number until the first letter
-            const classNum = parseInt(classText, 10).toString(10);
-            if (classNum === 'NaN' ||
-                CLASS_NUMBERS.indexOf(classNum) === -1) {
-                this.filteredSubstitutes[UNKNOWN_FILTER].push(substitute);
-            } else {
-                classText = classText.substr(classNum.length);
-                let foundLetter = false;
-                classText.split('').forEach((letter) => {
-                    if (CLASS_LETTERS.indexOf(letter) >= 0) {
-                        const filter = classNum + letter;
-                        hasherPerFilter[filter].hashSubstitute(substitute);
-                        this.filteredSubstitutes[filter].push(substitute);
-                        foundLetter = true;
-                    }
-                });
-                if (!foundLetter) {
+            for (let classTextPart of classText.split(',')) {
+                let isQClass = false;
+                if (classTextPart.includes(Q11_FILTER)) {
+                    isQClass = true;
+                    hasherPerFilter[Q11_FILTER].hashSubstitute(substitute);
+                    this.filteredSubstitutes[Q11_FILTER].push(substitute);
+                }
+                if (classTextPart.includes(Q12_FILTER)) {
+                    isQClass = true;
+                    hasherPerFilter[Q12_FILTER].hashSubstitute(substitute);
+                    this.filteredSubstitutes[Q12_FILTER].push(substitute);
+                }
+                if (classTextPart.includes(Q13_FILTER)) {
+                    isQClass = true;
+                    hasherPerFilter[Q13_FILTER].hashSubstitute(substitute);
+                    this.filteredSubstitutes[Q13_FILTER].push(substitute);
+                }
+                if (isQClass) {
+                    continue;
+                }
+                // this will parse the number until the first letter
+                const classNum = parseInt(classTextPart, 10).toString(10);
+                if (classNum === 'NaN' ||
+                    CLASS_NUMBERS.indexOf(classNum) === -1) {
                     this.filteredSubstitutes[UNKNOWN_FILTER].push(substitute);
+                } else {
+                    classTextPart = classTextPart.substr(classNum.length);
+                    if (classTextPart.length === 0) {
+                        CLASS_LETTERS.forEach((letter) => {
+                            const filter = classNum + letter;
+                            hasherPerFilter[filter].hashSubstitute(substitute);
+                            this.filteredSubstitutes[filter].push(substitute);
+                        });
+                        continue;
+                    }
+                    let foundLetter = false;
+                    classTextPart.split('').forEach((letter) => {
+                        if (CLASS_LETTERS.indexOf(letter) >= 0) {
+                            const filter = classNum + letter;
+                            hasherPerFilter[filter].hashSubstitute(substitute);
+                            this.filteredSubstitutes[filter].push(substitute);
+                            foundLetter = true;
+                        }
+                    });
+                    if (!foundLetter) {
+                        this.filteredSubstitutes[UNKNOWN_FILTER].push(substitute);
+                    }
                 }
             }
         }

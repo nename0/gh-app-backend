@@ -166,6 +166,7 @@ class PushMessagingClass {
                     console.log('410 from push endpoint: removing PushSubscription for ' + fingerprint);
                     return Database.deletePushSubscription(fingerprint);
                 }
+                console.warn('Error from push service', err);
                 countErrors++;
                 if (countErrors > 4) {
                     throw err;
