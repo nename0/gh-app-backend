@@ -35,17 +35,19 @@ class PlanFetcherClass {
                     cacheValue;
             }
         }
+        console.log('modification for ' + weekDay + ' changed: ' + modification.toUTCString());
         const promise = this.fetchPlanRequest(weekDay)
             .then((result) => {
                 const parsedPlan = parsePlan(weekDay, modification, result);
                 this.plansCache[weekDay] = parsedPlan;
+                this.daysToNotify.add(weekDay);
                 return parsedPlan;
             })
             .catch((err) => {
                 setTimeout(() => {
                     const cacheValue2 = this.plansCache[weekDay];
                     if (cacheValue2 instanceof PlanRequest && cacheValue2.promise === promise) {
-                this.plansCache[weekDay] = undefined;
+                        this.plansCache[weekDay] = undefined;
                     }
                 }, REQUEST_RETRY_TIME)
                 throw err;
@@ -65,7 +67,6 @@ class PlanFetcherClass {
         this.globalNotifyLock++;
         try {
             await this.fetchPlan(weekDay, modification);
-            this.daysToNotify.add(weekDay);
         } catch (err) {
             console.log('Error in PlanFetcher.fetchPlan', err.toString(), err.stack);
         } finally {

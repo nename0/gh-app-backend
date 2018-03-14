@@ -137,6 +137,9 @@ class PushMessagingClass {
 
     private sendPushNotifications(changedWeekDaysPerFilter: { [filter: string]: string[]; }, ttlValues: { [wd: string]: number; }) {
         const modificationHash = ModificationChecker.modificationHash;
+        if (modificationHash === '' ) {
+            throw new Error('sendPushNotifications: modificationHash not set');
+        }
         let countErrors = 0;
         return Database.pushSubscriptionCursor(async (fingerprint, subscriptionValue, filterValue) => {
             let filters: string[] = filterValue ? JSON.parse(filterValue) : [ALL_FILTER];

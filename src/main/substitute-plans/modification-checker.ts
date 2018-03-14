@@ -41,12 +41,12 @@ class ModificationCheckerClass {
                 if (result === cacheValue) {
                     return cacheValue;
                 }
-                console.log('modification for ' + weekDay + ' changed: ' + result.toUTCString());
                 PlanFetcher.notifyPlanModification(weekDay, result);
                 return result;
             })
             .catch((err) => {
                 this.modificationsCache[weekDay] = undefined;
+                this.modificationHash = '';
                 throw err;
             });
     }
