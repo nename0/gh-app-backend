@@ -1,4 +1,5 @@
-import { createHmac } from "crypto";
+import { createHmac } from 'crypto';
+import { IRouter } from 'express';
 
 export const RENEW_PERIOD_WEEKS = 6;  // For client
 export const EXPIRE_PERIOD_WEEKS = 8; // For server
@@ -6,35 +7,57 @@ export const EXPIRE_PERIOD_WEEKS = 8; // For server
 const MILLIS_WEEK = 7 * 24 * 3600 * 1000;
 
 const ALGO = 'sha256';
-const HASH_LENGTH = 256 * 2;
+const HASH_LENGTH_HEX = 256 / 4;
 if (!process.env.AUTH_SECRET) {
     throw new Error('AUTH_SECRET not set');
 }
 const AUTH_SECRET = <string>process.env.AUTH_SECRET;
 
-function generateCookieValue() {
-    const hmac = createHmac(ALGO, AUTH_SECRET);
+class AuthenticationManagerClass {
+    constructor() { }
 
-    let date = Date.now();
-    date = date / MILLIS_WEEK;
-    date = Math.floor(date);
-    const dateStr = date.toString(16).padStart(32, '0');
-    hmac.update(dateStr);
-    return dateStr + hmac.digest().toString('hex');
+    public setupApi(app: IRouter<any>) {
+        app.post('/auth/session', function(req, res) {
+            if (!req.body || !req.body.username || !req.body.password) {
+                res.status(400).send('Bad request body');
+            }
+        });
+    }
+
+    private generateCookieValue() {
+        const hmac = createHmac(ALGO, AUTH_SECRET);
+    
+        const dateStr = this.getWeekFromDate(new Date())
+            .toString(16).padStart(8, '0');
+        hmac.update(dateStr);
+        return dateStr + hmac.digest().toString('hex');
+    }
+    
+    private getWeekFromDate(date: Date) {
+        let millis = date.getTime();
+        millis = millis / MILLIS_WEEK;
+        return Math.floor(millis);
+    }
+    
+    private getWeekFromCookie(cookieValue?: string) {
+        if (!cookieValue || cookieValue.length !== 8 + HASH_LENGTH_HEX) {
+            return null;
+        }
+        const hmac = createHmac(ALGO, AUTH_SECRET);
+        const dateStr = cookieValue.slice(0, 8);
+        const digest = cookieValue.slice(8);
+        hmac.update(dateStr);
+        if (hmac.digest().toString('hex') !== digest) {
+            return null;
+        }
+        return parseInt(dateStr, 16);
+    }
 }
 
-function getDateFromCookie(cookieValue: string) {
-    if (cookieValue.length !== 32 + HASH_LENGTH) {
-        return null;
-    }
-    const hmac = createHmac(ALGO, AUTH_SECRET);
-    const dateStr = cookieValue.slice(0, 32);
-    const digest = cookieValue.slice(32);
-    hmac.update(dateStr);
-    if (hmac.digest().toString('hex') !== digest) {
-        return null;
-    }
-    let date = parseInt(dateStr, 16);
-    date = date * MILLIS_WEEK;
-    return new Date(date);
-}
+export const AuthenticationManager = new AuthenticationManagerClass();
+
+const x = generateCookieValue();
+console.log(x);
+console.log(x);
+console.log(x);
+console.log(x);

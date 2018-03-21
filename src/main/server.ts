@@ -38,6 +38,8 @@ class MyServer {
 
     config() {
         this.app.disable('x-powered-by');
+
+        this.app.use(express.json()); 
     }
 
     staticWWW() {
