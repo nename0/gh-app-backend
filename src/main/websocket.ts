@@ -6,6 +6,7 @@ import { ModificationChecker } from './substitute-plans/modification-checker';
 import { WSMESSAGE_PUSH_SUBSCRIPTION, WSMESSAGE_MODIFICATION_HASH_UPDATE, WSMESSAGE_MODIFICATION_HASH_QUERY } from './websocket-mesages';
 import { URLSearchParams } from 'url';
 import { PushMessaging } from './push';
+import { AuthenticationManager } from './auth';
 
 ws.prototype['sendAsync'] = promisify(ws.prototype.send);
 declare class MyWebSocket extends ws {
@@ -33,7 +34,9 @@ class WebsocketServerClass {
     }
 
     private verifyClient: ws.VerifyClientCallbackSync = (info) => {
-        //TODO auth
+        if (!AuthenticationManager.checkAuthentication(info.req)) {
+            return false;
+        }
         return ['https://gh-app.tk',
             'https://backend-gh-app.herokuapp.com',
             'http://localhost:9000',

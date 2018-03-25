@@ -7,6 +7,7 @@ import { plansApi } from './substitute-plans/api';
 import { Scheduler } from './scheduler';
 import { WebsocketServer } from './websocket';
 import * as expressStaticGzip from 'express-static-gzip';
+import { AuthenticationManager } from './auth';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const STATIC_WWW_PATH = path.join(__dirname, '../www');
@@ -39,7 +40,7 @@ class MyServer {
     config() {
         this.app.disable('x-powered-by');
 
-        this.app.use(express.json()); 
+        this.app.use(express.json());
     }
 
     staticWWW() {
@@ -58,6 +59,8 @@ class MyServer {
     }
 
     api() {
+        AuthenticationManager.setupApi(this.apiRouter);
+
         this.apiRouter.use(compression());
         plansApi(this.apiRouter);
     }
