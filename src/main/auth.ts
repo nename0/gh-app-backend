@@ -1,4 +1,4 @@
-import { createHmac, createHash } from 'crypto';
+import { createHmac, createHash, timingSafeEqual } from 'crypto';
 import { IRouter, Response } from 'express';
 import * as cookieParser from 'cookie-parser';
 import { IncomingMessage } from 'http';
@@ -22,7 +22,7 @@ const COOKIE_KEY = 'AUTH_SESSION';
 const VALID_HASHES = [
     'c8054b63a920a0140cb07f76c83dd030a337b0f92cf80237b6bad98f2cc81cfa',
     'aaf9f2ee5c72b05c49251d8d28fb2dd87bd5ffb1bf84fdb734da182a7e1a9222'
-];
+].map((s) => new Buffer(s, 'hex'));
 
 class AuthenticationManagerClass {
     sessionCookieParser = cookieParser(AUTH_SECRET);
@@ -42,7 +42,8 @@ class AuthenticationManagerClass {
             const authStr = req.body.username + ':' + req.body.password;
             const hasher = createHash(ALGO);
             hasher.update(authStr);
-            if (!VALID_HASHES.includes(hasher.digest().toString('hex'))) {
+            const result = hasher.digest();
+            if (!VALID_HASHES.some((validHash) => timingSafeEqual(validHash, result))) {
                 res.status(401).send('Bad credentials');
                 return;
             }
@@ -98,7 +99,7 @@ class AuthenticationManagerClass {
     private clearSessionCookie(res: Response) {
         res.clearCookie(COOKIE_KEY, {
             httpOnly: true,
-            maxAge: EXPIRE_PERIOD_MILLIS
+            maxAge: -1
         });
     }
 
