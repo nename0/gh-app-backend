@@ -34,13 +34,7 @@ class WebsocketServerClass {
     }
 
     private verifyClient: ws.VerifyClientCallbackSync = (info) => {
-        if (!AuthenticationManager.checkAuthentication(info.req)) {
-            return false;
-        }
-        return ['https://gh-app.tk',
-            'https://backend-gh-app.herokuapp.com',
-            'http://localhost:9000',
-            'http://geccom:9000'].includes(info.origin);
+        return AuthenticationManager.checkWebsocketConnection(info.req);
     }
 
     private handleConnection = (socket: MyWebSocket, req: IncomingMessage) => {
