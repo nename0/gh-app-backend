@@ -19,9 +19,9 @@ if (!process.env.AUTH_SECRET) {
 }
 const AUTH_SECRET = <string>process.env.AUTH_SECRET;
 
-// we use both cookie and header because cloudflare will ignore vary: cookie
+// we use both cookie and query param because cloudflare will ignore vary header
 const COOKIE_KEY = 'AUTH_SESSION';
-const AUTH_HEADER = 'X-AUTH';
+const AUTH_QUERY_KEY = 'auth';
 
 const VALID_HASHES = [
     'c8054b63a920a0140cb07f76c83dd030a337b0f92cf80237b6bad98f2cc81cfa',
@@ -34,6 +34,7 @@ class AuthenticationManagerClass {
     constructor() { }
 
     public setupApi(app: IRouter<any>) {
+        app.use(this.sessionCookieParser);
         // login endpoint
         app.post('/auth/session', (req, res) => {
             if (!this.checkOrigin(req, res)) {
@@ -62,21 +63,23 @@ class AuthenticationManagerClass {
             res.status(204).send();
         });
         // middleware to check cookie value
-        app.use(this.sessionCookieParser);
         app.use((req, res, next) => {
             if (!this.checkOrigin(req, res)) {
                 return;
             }
             // the sessionCookieParser middleware will only set this value if signature is correct
-            const strWeekValue = req.signedCookies[COOKIE_KEY];
+            const cookieValue = req.signedCookies[COOKIE_KEY];
             // parse again to get raw value with signature and keep url formating
-            const rawCookieValue = parseCookie(req.headers.cookie || '', { decode: (a) => a })[COOKIE_KEY];
-            // auth header should contain rawCookieValue
-            if (!strWeekValue || !rawCookieValue || req.header(AUTH_HEADER) !== rawCookieValue) {
-                res.status(401).send('missing ' + COOKIE_KEY + ' cookie or ' + AUTH_HEADER + ' header');
+            const rawCookieValue = parseCookie(req.headers.cookie || '')[COOKIE_KEY];
+            if (!cookieValue || !rawCookieValue) {
+                res.status(401).send('missing ' + COOKIE_KEY + ' cookie');
                 return;
             }
-            const weekValue = parseInt(strWeekValue, 16);
+            if (rawCookieValue !== req.query[AUTH_QUERY_KEY]) {
+                res.status(400).send(AUTH_QUERY_KEY + ' query param must be set to ' + COOKIE_KEY + ' cookie');
+                return;
+            }
+            const weekValue = parseInt(cookieValue, 16) * RENEW_PERIOD_WEEKS;
             const diff = this.getWeeksValueFromDate(new Date()) - weekValue;
             if (diff > EXPIRE_PERIOD_WEEKS) {
                 res.status(401).send('session expired');
@@ -85,8 +88,6 @@ class AuthenticationManagerClass {
             if (diff > RENEW_PERIOD_WEEKS) {
                 this.setSessionCookie(res);
             }
-            // if we change this to cookie cloudflare will ignore it leading to authenticated responses to unauthenticated requests
-            vary(res, AUTH_HEADER);
             next();
         });
     }
@@ -102,13 +103,14 @@ class AuthenticationManagerClass {
         if (!strValue) {
             return false;
         }
-        const weekValue = parseInt(strValue, 16);
+        const weekValue = parseInt(strValue, 16) * RENEW_PERIOD_WEEKS;
         const diff = this.getWeeksValueFromDate(new Date()) - weekValue;
         return diff <= EXPIRE_PERIOD_WEEKS;
     }
 
     private setSessionCookie(res: Response) {
-        res.cookie(COOKIE_KEY, this.getWeeksValueFromDate(new Date()).toString(16), {
+        const cookieValue = this.getWeeksValueFromDate(new Date()) / RENEW_PERIOD_WEEKS;
+        res.cookie(COOKIE_KEY, cookieValue.toString(16), {
             maxAge: EXPIRE_PERIOD_MILLIS,
             signed: true
         });
@@ -122,7 +124,7 @@ class AuthenticationManagerClass {
 
     private getWeeksValueFromDate(date: Date) {
         let millis = date.getTime();
-        millis = millis / RENEW_PERIOD_MILLIS;
+        millis = millis / MILLIS_WEEK;
         return Math.floor(millis);
     }
 

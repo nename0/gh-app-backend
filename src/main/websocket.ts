@@ -34,6 +34,9 @@ class WebsocketServerClass {
     }
 
     private verifyClient: ws.VerifyClientCallbackSync = (info) => {
+        if (!info.origin) {
+            return false;
+        }
         return AuthenticationManager.checkWebsocketConnection(info.req);
     }
 
