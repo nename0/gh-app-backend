@@ -9,7 +9,7 @@ export function plansApi(app: express.IRouter<any>) {
     app.get('/plans/getModificationHash', async function(req, res) {
         const date = await ModificationChecker.getLatestModification();
         const hash = ModificationChecker.modificationHash;
-        if (hash === '' ) {
+        if (hash === '') {
             throw new Error('api getModificationHash: modificationHash not set after getLatestModification()');
         }
         res.set({

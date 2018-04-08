@@ -1,7 +1,7 @@
 import { IncomingMessage } from 'http';
 import { ParsedPlan } from './parser';
 import { PlanFetcher } from './plan-fetcher';
-import { gymHerzRequest, WEEK_DAYS, REQUEST_RETRY_TIME } from './gym-herz-server';
+import { WEEK_DAYS, REQUEST_RETRY_TIME, onRequestSocketTimeout, getGymHerzRequest } from './gym-herz-server';
 import { WebsocketServer } from '../websocket';
 
 class ModificationCheckerClass {
@@ -23,7 +23,7 @@ class ModificationCheckerClass {
                 'if-modified-since': oldValue.toUTCString()
             };
         }
-        const message: IncomingMessage = await gymHerzRequest.head(options);
+        const message: IncomingMessage = await getGymHerzRequest().head(options);
         const lastModified = message.headers['last-modified'];
         if (message.statusCode === 200 && lastModified) {
             return new Date(lastModified);
@@ -45,6 +45,9 @@ class ModificationCheckerClass {
                 return result;
             })
             .catch((err) => {
+                if (err.toString().includes('ESOCKETTIMEDOUT')) {
+                    onRequestSocketTimeout();
+                }
                 this.modificationsCache[weekDay] = undefined;
                 this.modificationHash = '';
                 throw err;

@@ -1,6 +1,6 @@
 import { IncomingMessage } from 'http';
 import { ParsedPlan, parsePlan } from './parser';
-import { gymHerzRequest, REQUEST_RETRY_TIME } from './gym-herz-server';
+import { REQUEST_RETRY_TIME, getGymHerzRequest, onRequestSocketTimeout } from './gym-herz-server';
 import { ModificationChecker } from './modification-checker';
 import { PushMessaging } from '../push';
 import { Database } from '../db';
@@ -14,7 +14,7 @@ class PlanFetcherClass {
     constructor() { }
 
     private async fetchPlanRequest(weekDay: string) {
-        const message: IncomingMessage = await gymHerzRequest.get({
+        const message: IncomingMessage = await getGymHerzRequest().get({
             url: 'vertretung_filter/?wd=' + weekDay,
             gzip: true,
             encoding: 'latin1'
@@ -44,6 +44,9 @@ class PlanFetcherClass {
                 return parsedPlan;
             })
             .catch((err) => {
+                if (err.toString().includes('ESOCKETTIMEDOUT')) {
+                    onRequestSocketTimeout();
+                }
                 setTimeout(() => {
                     const cacheValue2 = this.plansCache[weekDay];
                     if (cacheValue2 instanceof PlanRequest && cacheValue2.promise === promise) {
