@@ -3,6 +3,10 @@ import * as request_promised from 'request-promise-native';
 
 export const WEEK_DAYS = ['mo', 'di', 'mi', 'do', 'fr'];
 
+export function getWeekDayShortStr(wd: string): string {
+    return wd[0].toUpperCase() + wd[1];
+}
+
 let agent;
 
 let gymHerzRequest;

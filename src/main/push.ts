@@ -6,6 +6,7 @@ import { Scheduler } from './scheduler';
 import { SELECTABLE_FILTERS, ALL_FILTER, isFilterHashFromDate } from './substitute-plans/filter';
 import { ParsedPlan } from './substitute-plans/parser';
 import { ModificationChecker } from './substitute-plans/modification-checker';
+import { WEEK_DAYS, getWeekDayShortStr } from './substitute-plans/gym-herz-server';
 
 const publicKey = 'BFnMFwGNZpptuw48WlgK1ae8k-t09c26C_Ssf04jmHKJfnMM26SLprWmnRr_z03MbYenDHlmsjsj_-0_T-O4U6M';
 const privateKey = 'tmzN8-KqDMH-pbALgcN3mdhT2EFghJD3b6vY98Vl5N0';
@@ -95,28 +96,8 @@ class PushMessagingClass {
             if (millisDiff < 0) {
                 continue; // only push when 17 o'clock of the plan's date is still in the future
             }
-            const weekDay = plan.weekDay;
-            ttlValues[weekDay] = Math.floor(millisDiff / 1000);
-            const pushedHashesOfWeekDay = pushedHashes[weekDay];
-            for (const [filter, hash] of Object.entries(plan.filtered.filterHashes)) {
-                if (pushedHashesOfWeekDay[filter] !== hash) {
-                    pushedHashesOfWeekDay[filter] = hash;
-                    changedWeekDays.add(weekDay);
-                    changedWeekDaysPerFilter[filter] = changedWeekDaysPerFilter[filter] || [];
-                    changedWeekDaysPerFilter[filter].push(weekDay);
-                }
-            }
-            const removedFilters = Object.keys(pushedHashesOfWeekDay)
-                .filter((filter) => !(filter in plan.filtered.filterHashes));
-            for (const removedFilter of removedFilters) {
-                const oldHash = pushedHashesOfWeekDay[removedFilter];
-                delete pushedHashesOfWeekDay[removedFilter];
-                if (isFilterHashFromDate(oldHash, plan.planDate)) {
-                    changedWeekDays.add(weekDay);
-                    changedWeekDaysPerFilter[removedFilter] = changedWeekDaysPerFilter[removedFilter] || [];
-                    changedWeekDaysPerFilter[removedFilter].push(weekDay);
-                }
-            }
+            ttlValues[plan.weekDay] = Math.floor(millisDiff / 1000);
+            this.getChangesForDay(plan, pushedHashes[plan.weekDay], changedWeekDays, changedWeekDaysPerFilter);
         }
         if (!changedWeekDays.size) {
             console.log('Not Pushing');
@@ -124,7 +105,7 @@ class PushMessagingClass {
         }
         console.log('Pushing ' + JSON.stringify(changedWeekDaysPerFilter));
         try {
-            await this.sendPushNotifications(changedWeekDaysPerFilter, ttlValues);
+            await this.sendPushNotifications(changedWeekDaysPerFilter, ttlValues, plans);
         } catch (err) {
             // reset pushedHashes
             this.pushedHashes = Database.getPushedHashes();
@@ -135,33 +116,47 @@ class PushMessagingClass {
         }
     }
 
-    private sendPushNotifications(changedWeekDaysPerFilter: { [filter: string]: string[]; }, ttlValues: { [wd: string]: number; }) {
+    private getChangesForDay(planOfDay: ParsedPlan, pushedHashesOfWeekDay: { [filter: string]: string },
+        changedWeekDays: Set<string>, changedWeekDaysPerFilter: { [filter: string]: string[] }) {
+
+        const weekDay = planOfDay.weekDay;
+        for (const [filter, hash] of Object.entries(planOfDay.filtered.filterHashes)) {
+            if (pushedHashesOfWeekDay[filter] !== hash) {
+                pushedHashesOfWeekDay[filter] = hash;
+                changedWeekDays.add(weekDay);
+                changedWeekDaysPerFilter[filter] = changedWeekDaysPerFilter[filter] || [];
+                changedWeekDaysPerFilter[filter].push(weekDay);
+            }
+        }
+        const removedFilters = Object.keys(pushedHashesOfWeekDay)
+            .filter((filter) => !(filter in planOfDay.filtered.filterHashes));
+        for (const removedFilter of removedFilters) {
+            const oldHash = pushedHashesOfWeekDay[removedFilter];
+            delete pushedHashesOfWeekDay[removedFilter];
+            if (isFilterHashFromDate(oldHash, planOfDay.planDate)) {
+                changedWeekDays.add(weekDay);
+                changedWeekDaysPerFilter[removedFilter] = changedWeekDaysPerFilter[removedFilter] || [];
+                changedWeekDaysPerFilter[removedFilter].push(weekDay);
+            }
+        }
+    }
+
+    private sendPushNotifications(changedWeekDaysPerFilter: { [filter: string]: string[] }, ttlValues: { [wd: string]: number }, plans: ParsedPlan[]) {
         const modificationHash = ModificationChecker.modificationHash;
-        if (modificationHash === '' ) {
+        if (modificationHash === '') {
             throw new Error('sendPushNotifications: modificationHash not set');
         }
         let countErrors = 0;
         return Database.pushSubscriptionCursor(async (fingerprint, subscriptionValue, filterValue) => {
-            let filters: string[] = filterValue ? JSON.parse(filterValue) : [ALL_FILTER];
-            filters = filters.filter((filter) => filter in changedWeekDaysPerFilter);
-            if (!filters.length) {
+            const { ttlSeconds, payload } = this.generatePushPayload(filterValue, changedWeekDaysPerFilter, modificationHash, ttlValues, plans);
+            if (ttlSeconds <= 0) {
                 return;
             }
-            const weekDaysSet = new Set();
-            filters.forEach((filter) => changedWeekDaysPerFilter[filter]
-                .forEach((wd) => weekDaysSet.add(wd)));
-            const weekDays = Array.from(weekDaysSet);
-            const payload = JSON.stringify({
-                mh: modificationHash,
-                days: weekDays
-            });
-            let ttl = weekDays.map((wd) => ttlValues[wd]).reduce((max, ttlValue) => Math.max(max, ttlValue), 0);
-            // Max TTL is four weeks.
-            ttl = Math.min(ttl, 3600 * 24 * 7 * 4);
             try {
                 const subscription = JSON.parse(subscriptionValue);
                 await sendNotification(subscription, payload, {
-                    TTL: ttl
+                    // Max TTL is four weeks.
+                    TTL: Math.min(ttlSeconds, 3600 * 24 * 7 * 4)
                 });
             } catch (err) {
                 // http code 410 (GONE) means subscription is canceled
@@ -176,6 +171,57 @@ class PushMessagingClass {
                 }
             }
         });
+    }
+
+    private generatePushPayload(filterValue: string, changedWeekDaysPerFilter: { [filter: string]: string[] },
+        modificationHash: string, ttlValues: { [wd: string]: number }, plans: ParsedPlan[]) {
+
+        let filters: string[] = filterValue ? JSON.parse(filterValue) : [ALL_FILTER];
+        filters = filters.filter((filter) => filter in changedWeekDaysPerFilter);
+        if (!filters.length) {
+            return { ttlSeconds: -1, payload: '' };
+        }
+        const weekDaysSet = new Set<string>();
+        filters.forEach((filter) => changedWeekDaysPerFilter[filter]
+            .forEach((wd) => weekDaysSet.add(wd)));
+        const weekDays = Array.from(weekDaysSet);
+        weekDays.sort((a, b) => WEEK_DAYS.indexOf(a) - WEEK_DAYS.indexOf(b));
+
+        const lines: string[] = [];
+        let lineBeginning = '';
+        outer:
+        for (const wd of weekDays) {
+            const plan = plans.find((p) => p.weekDay === wd);
+            if (!plan) {
+                throw new Error('should not happen: generatePushPayload plan for ' + wd + ' not found');
+            }
+            if (weekDays.length > 1) {
+                lineBeginning = getWeekDayShortStr(wd) + ': ';
+            }
+            for (const filter of filters) {
+                if (!plan.filtered.filteredSubstitutes[filter]) {
+                    continue;
+                }
+                for (const substitute of plan.filtered.filteredSubstitutes[filter]) {
+                    if (lines.length >= 8) {
+                        lines.push('...');
+                        break outer;
+                    }
+                    lines.push(lineBeginning +
+                        '| ' + substitute.classText + ' | ' + substitute.lesson + ' | ' + substitute.substitute + ' |');
+                    lineBeginning = '';
+                }
+            }
+        }
+        const body = lines.join('\r\n');
+
+        const payload = JSON.stringify({
+            mh: modificationHash,
+            days: weekDays,
+            body
+        });
+        const ttlSeconds = weekDays.map((wd) => ttlValues[wd]).reduce((max, ttlValue) => Math.max(max, ttlValue), 0);
+        return { ttlSeconds, payload };
     }
 }
 
