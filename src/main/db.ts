@@ -1,5 +1,5 @@
 import { Client, Pool } from 'pg';
-import { EXPIRE_PERIOD_WEEKS } from './auth';
+import { EXPIRE_PERIOD_WEEKS } from './auth-const';
 import * as Cursor from 'pg-cursor';
 import { promisify } from 'util';
 import { WEEK_DAYS } from './substitute-plans/gym-herz-server';

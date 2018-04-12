@@ -4,13 +4,8 @@ import * as cookieParser from 'cookie-parser';
 import { parse as parseCookie } from 'cookie';
 import * as vary from 'vary';
 import { IncomingMessage } from 'http';
-
-const MILLIS_WEEK = 7 * 24 * 3600 * 1000;
-
-export const RENEW_PERIOD_WEEKS = 2;
-export const RENEW_PERIOD_MILLIS = RENEW_PERIOD_WEEKS * MILLIS_WEEK;
-export const EXPIRE_PERIOD_WEEKS = 8;
-export const EXPIRE_PERIOD_MILLIS = EXPIRE_PERIOD_WEEKS * MILLIS_WEEK;
+import { RENEW_PERIOD_WEEKS, EXPIRE_PERIOD_WEEKS, EXPIRE_PERIOD_MILLIS, MILLIS_WEEK } from './auth-const';
+import { PushMessaging } from './push';
 
 const ALGO = 'sha256';
 const HASH_LENGTH_HEX = 256 / 4;
@@ -59,6 +54,10 @@ class AuthenticationManagerClass {
         });
         // logout endpoint
         app.delete('/auth/session', (req, res) => {
+            const fingerprint = req.query.fingerprint;
+            if (fingerprint && fingerprint.length === 56) {
+                PushMessaging.onLogout(fingerprint);
+            }
             this.clearSessionCookie(res);
             res.status(204).send();
         });

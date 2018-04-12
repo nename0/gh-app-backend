@@ -35,6 +35,12 @@ class PushMessagingClass {
         console.log('Deleted ' + result + ' old push subscriptions');
     }
 
+    public onLogout(fingerprint: string) {
+        console.log('removing PushSubscription on logout for ' + fingerprint);
+        Database.deletePushSubscription(fingerprint)
+            .catch((err) => console.log('error in database while deleting push subscription onLogout', err.toString(), err.stack));
+    }
+
     public onWebsocketMessage(fingerprint: string, value: string) {
         const onError = (err) => {
             console.log('error in database while updating push subscription', err.toString(), err.stack);
